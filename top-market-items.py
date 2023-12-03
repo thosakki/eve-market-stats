@@ -3,6 +3,7 @@
 from argparse import ArgumentParser
 from collections import defaultdict, namedtuple
 import csv
+import gzip
 import logging
 import math
 import operator
@@ -61,13 +62,37 @@ with open('popular.csv') as market_data_csv:
         items[ti.ID] = { 'ID': ti.ID, 'Name': ti.Name, 'CategoryID': ti.CategoryID, 'GroupID': ti.GroupID, 'num': traded_items, 'value': value_traded, 'score': value_traded / math.pow(value_traded/traded_items, 0.6)}
 log.info('...read trade volumes')
 
+def parse_agg_what(s: str) -> (int, int, bool):
+    region,  type_id, is_buy = s.split('|')
+    return (int(region), int(type_id), is_buy=='true')
+
+log.info('Reading buy & sell prices')
+with gzip.open('aggregatecsv.csv.gz', 'rt') as agg_fh:
+    #  what,weightedaverage,maxval,minval,stddev,median,volume,numorders,fivepercent,orderSet
+    reader = csv.DictReader(agg_fh)
+    for r in reader:
+        region, type_id, is_buy = parse_agg_what(r['what'])
+        if type_id not in items: continue
+
+        # The Forge, Sinq Liason, Domain
+        if region not in (10000002, 10000032, 10000043): continue
+        if is_buy:
+            best_price = float(r['maxval'])
+            if 'buy' not in items[type_id] or items[type_id]['buy'] < best_price:
+                items[type_id]['buy'] = best_price
+        else:
+            best_price = float(r['minval'])
+            if 'sell' not in items[type_id] or items[type_id]['sell'] > best_price:
+                items[type_id]['sell'] = best_price
+log.info('...read buy & sell prices')
+
 log.info('Producing outout...')
 count = 0
 
 w = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-w.writerow(['ID', 'Name', 'GroupID', 'CategoryID', 'Value Traded'])
+w.writerow(['ID', 'Name', 'GroupID', 'CategoryID', 'Value Traded', 'Buy', 'Sell'])
 for id, d in sorted(items.items(), key=lambda x: x[1]['score'], reverse=True):
-    w.writerow([d['ID'], d['Name'], d['GroupID'], d['CategoryID'], d['value']])
+    w.writerow([d['ID'], d['Name'], d['GroupID'], d['CategoryID'], d['value'], d.get('buy', '-'), d.get('sell', '-')])
     count += 1
     if count > 10000:
         break
