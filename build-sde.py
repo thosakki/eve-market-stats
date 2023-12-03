@@ -13,6 +13,7 @@ logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=loggi
 log = logging.getLogger(__name__)
 arg_parser = ArgumentParser(prog='build-sde.py')
 arg_parser.add_argument('--initial', action='store_true')
+arg_parser.add_argument('--skip_types', action='store_true')
 args = arg_parser.parse_args()
 
 def build_categories(cur):
@@ -53,7 +54,7 @@ def build_categories(cur):
             cat_id = k
             name = v['name']['en']
             try:
-                cur.execute("""INSERT INTO Categories VALUES(?,?)""", [cat_id, name])
+                cur.execute("""INSERT OR REPLACE INTO Categories VALUES(?,?)""", [cat_id, name])
             except sqlite3.IntegrityError:
                 log.error("failed to insert ({},{})".format(cat_id, name))
         # assume document ends and no further documents are in stream
@@ -105,7 +106,7 @@ def build_groups(cur):
             group_id = k
             name = v['name']['en']
             try:
-                cur.execute("""INSERT INTO Groups VALUES(?,?,?)""", [group_id, name, v['categoryID']])
+                cur.execute("""INSERT OR REPLACE INTO Groups VALUES(?,?,?)""", [group_id, name, v['categoryID']])
             except sqlite3.IntegrityError:
                 log.error("failed to insert ({},{},{})".format(group_id, name, v['categoryID']))
         # assume document ends and no further documents are in stream
@@ -170,10 +171,55 @@ def build_types(cur):
         assert loader.check_event(yaml.StreamEndEvent)
         cur.commit()
 
+def build_stations(cur):
+    if args.initial:
+        cur.execute("""
+        CREATE TABLE Stations(
+          ID       INT PRIMARY KEY NOT NULL,
+          Name     TEXT NOT NULL,
+          SystemID INT NOT NULL,
+          RegionID INT NOT NULL
+        );""")
+
+    with open("sde/bsd/staStations.yaml", "rt") as types_file:
+        loader = yaml.SafeLoader(types_file)
+
+        # check proper stream start (should never fail)
+        assert loader.check_event(yaml.StreamStartEvent)
+        loader.get_event()
+        assert loader.check_event(yaml.DocumentStartEvent)
+        loader.get_event()
+
+        # assume the root element is a sequence
+        assert loader.check_event(yaml.SequenceStartEvent)
+        loader.get_event()
+
+        count = 0
+        # now while the next event does not end the sequence, process each item
+        while not loader.check_event(yaml.SequenceEndEvent):
+            # compose current item to a node as if it was the root node
+            node = loader.compose_node(None, None)
+            # we set deep=True for complete processing of all the node's children
+            v = loader.construct_object(node, True)
+
+            try:
+                cur.execute("""INSERT OR REPLACE INTO Stations VALUES(?,?,?,?);""", [v['stationID'], v['stationName'], v['solarSystemID'], v['regionID']])
+            except sqlite3.IntegrityError:
+                log.error("failed to insert '{}'".format(v['stationID']))
+
+        # assume document ends and no further documents are in stream
+        loader.get_event()
+        assert loader.check_event(yaml.DocumentEndEvent)
+        loader.get_event()
+        assert loader.check_event(yaml.StreamEndEvent)
+        cur.commit()
+
 con = sqlite3.connect("sde.db")
 cur = con.cursor()
-build_types(con)
+if not args.skip_types:
+    build_types(con)
 build_groups(con)
 build_categories(con)
+build_stations(con)
 
 log.info('...done')
