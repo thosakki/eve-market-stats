@@ -24,7 +24,7 @@ arg_parser.add_argument('--exclude_category', nargs='*', type=int)
 args = arg_parser.parse_args()
 
 items = {}
-TypeInfo = namedtuple('TypeInfo', ['ID', 'Name', 'GroupID', 'GroupName', 'CategoryID', 'CategoryName'])
+TypeInfo = lib.TypeInfo
 
 con = sqlite3.connect("sde.db")
 cur = con.cursor()
