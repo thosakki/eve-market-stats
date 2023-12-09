@@ -18,6 +18,7 @@ items = dict()
 
 arg_parser = ArgumentParser(prog='calc-market-quality.py')
 arg_parser.add_argument('--orderset', type=str)
+arg_parser.add_argument('--dump-detail-for', type=int)
 args = arg_parser.parse_args()
 
 con = sqlite3.connect("sde.db")
@@ -42,7 +43,16 @@ with open("top-traded.csv", "rt") as fh:
 
 def emit_station_stats(w, stationID: int, efficiencies: List[float]):
     coverage = len(efficiencies) / len(items)
-    #log.info('efficiencies: {}'.format([(i, x) for i, x in efficiencies if x > 2]))
+
+    if args.dump_detail_for == stationID:
+        log.info("Dumping for station {}".format(stationID))
+        with open("dump.csv", "wt") as f:
+            d = csv.writer(f)
+            d.writerow(['TypeID', 'Name', 'Efficiency'])
+            for i, e in efficiencies:
+                ti = lib.get_type_info(cur, i)
+                d.writerow([i, ti.Name, e])
+
     if len(efficiencies)>0:
         mean_efficiency = mean([e for i, e in efficiencies])
         eff_str = '{:.1f}%'.format((mean_efficiency-1)*100)
