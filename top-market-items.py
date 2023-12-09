@@ -11,9 +11,12 @@ import sqlite3
 import sys
 import yaml
 
+import lib
+
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
 arg_parser = ArgumentParser(prog='top-market-items')
+arg_parser.add_argument('--orderset', type=str)
 arg_parser.add_argument('--include_group', nargs='*', type=int)
 arg_parser.add_argument('--exclude_group', nargs='*', type=int)
 arg_parser.add_argument('--include_category', nargs='*', type=int)
@@ -67,23 +70,16 @@ def parse_agg_what(s: str) -> (int, int, bool):
     return (int(region), int(type_id), is_buy=='true')
 
 log.info('Reading buy & sell prices')
-with gzip.open('aggregatecsv.csv.gz', 'rt') as agg_fh:
-    #  what,weightedaverage,maxval,minval,stddev,median,volume,numorders,fivepercent,orderSet
-    reader = csv.DictReader(agg_fh)
-    for r in reader:
-        region, type_id, is_buy = parse_agg_what(r['what'])
-        if type_id not in items: continue
-
-        # The Forge, Sinq Liason, Domain
-        if region not in (10000002, 10000032, 10000043): continue
-        if is_buy:
-            best_price = float(r['maxval'])
-            if 'buy' not in items[type_id] or items[type_id]['buy'] < best_price:
-                items[type_id]['buy'] = best_price
-        else:
-            best_price = float(r['minval'])
-            if 'sell' not in items[type_id] or items[type_id]['sell'] > best_price:
-                items[type_id]['sell'] = best_price
+for o in lib.read_orderset(args.orderset):
+    # Jita 4-4, Dodixie FNAP, Amarr EFA
+    if o.StationID not in (60003760, 60011866, 60008494): continue
+    if o.TypeID not in items: continue
+    if o.IsBuy:
+        if items[o.TypeID].get('buy',0) < o.Price:
+            items[o.TypeID]['buy'] = o.Price
+    else:
+        if 'sell' not in items[o.TypeID] or items[o.TypeID]['sell'] > o.Price:
+            items[o.TypeID]['sell'] = o.Price
 log.info('...read buy & sell prices')
 
 log.info('Producing outout...')
