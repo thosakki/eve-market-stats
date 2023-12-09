@@ -181,8 +181,8 @@ def build_stations(cur):
           RegionID INT NOT NULL
         );""")
 
-    with open("sde/bsd/staStations.yaml", "rt") as types_file:
-        loader = yaml.SafeLoader(types_file)
+    with open("sde/bsd/staStations.yaml", "rt") as sta_file:
+        loader = yaml.SafeLoader(sta_file)
 
         # check proper stream start (should never fail)
         assert loader.check_event(yaml.StreamStartEvent)
@@ -213,6 +213,17 @@ def build_stations(cur):
         loader.get_event()
         assert loader.check_event(yaml.StreamEndEvent)
         cur.commit()
+
+    with open("extra-stations.csv", "rt") as more_fh:
+        r = csv.DictReader(more_fh)
+        for row in r:
+            try:
+                cur.execute("""INSERT OR REPLACE INTO Stations VALUES(?,?,?,?)""",
+                        [row['ID'], row['Name'], row['SystemID'], row['RegionID']])
+            except sqlite3.IntegrityError:
+                log.error("failed to insert extra '{}'".format(row['ID']))
+        cur.commit()
+
 
 con = sqlite3.connect("sde.db")
 cur = con.cursor()

@@ -42,7 +42,7 @@ with open("top-traded.csv", "rt") as fh:
 
 def emit_station_stats(w, stationID: int, efficiencies: List[float]):
     coverage = len(efficiencies) / len(items)
-    log.info('efficiencies: {}'.format([(i, x) for i, x in efficiencies if x > 2]))
+    #log.info('efficiencies: {}'.format([(i, x) for i, x in efficiencies if x > 2]))
     if len(efficiencies)>0:
         mean_efficiency = mean([e for i, e in efficiencies])
         eff_str = '{:.1f}%'.format((mean_efficiency-1)*100)
