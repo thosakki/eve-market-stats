@@ -4,7 +4,7 @@ from argparse import ArgumentParser
 from collections import namedtuple
 import csv
 import logging
-from typing import List, Optional
+from typing import List, Optional, Tuple
 import sqlite3
 import sys
 
@@ -24,8 +24,8 @@ args = arg_parser.parse_args()
 con = sqlite3.connect("sde.db")
 cur = con.cursor()
 
-def mean(d: List[float]) -> float:
-    return(sum(d)/len(d))
+def weighted_mean(d: List[Tuple[float, float]]) -> float:
+    return(sum(w*v for w,v in d)/sum(w for w,_ in d))
 
 def parse_float(x: str) -> Optional[float]:
     if x == '-':
@@ -48,13 +48,13 @@ def emit_station_stats(w, stationID: int, efficiencies: List[float]):
         log.info("Dumping for station {}".format(stationID))
         with open("dump.csv", "wt") as f:
             d = csv.writer(f)
-            d.writerow(['TypeID', 'Name', 'Efficiency'])
-            for i, e in efficiencies:
+            d.writerow(['TypeID', 'Name', 'Value Traded (universal)', 'Efficiency'])
+            for i, v, e in efficiencies:
                 ti = lib.get_type_info(cur, i)
-                d.writerow([i, ti.Name, e])
+                d.writerow([i, ti.Name, v, e])
 
     if len(efficiencies)>0:
-        mean_efficiency = mean([e for i, e in efficiencies])
+        mean_efficiency = weighted_mean([(w,e) for i, w, e in efficiencies])
         eff_str = '{:.1f}%'.format((mean_efficiency-1)*100)
     else:
         eff_str = '-'
@@ -83,7 +83,7 @@ for x in lib.read_orderset(args.orderset):
 
             # Treat stupidly overpriced stuff as unavailable.
             if efficiency <= 100:
-                current_station_price_efficiencies.append((current_type, efficiency))
+                current_station_price_efficiencies.append((current_type, items[current_type].ValueTraded, efficiency))
         current_type_best_sell = None
         current_type = None
 
