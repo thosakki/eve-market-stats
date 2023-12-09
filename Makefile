@@ -14,7 +14,7 @@ latest-orderset-by-station-type.csv.gz	:	latest.csv.gz
 	zcat $< | sort -t '	'  -k 9n -k 2n | gzip -9 - > $@
 
 
-market-quality.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv
-	zcat $< | ./calc-market-quality.py > $@
+market-quality.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv calc-market-quality.py
+	./calc-market-quality.py --orderset $< > $@
 
 .DELETE_ON_ERROR	:	top-traded.tsv

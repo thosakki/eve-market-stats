@@ -1,5 +1,6 @@
 #!/usr/bin/python3
 
+from argparse import ArgumentParser
 from collections import namedtuple
 import csv
 import logging
@@ -7,13 +8,17 @@ from typing import List, Optional
 import sqlite3
 import sys
 
+import lib
+
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
 
 ItemSummary = namedtuple('ItemSummary', ['ID', 'Name', 'GroupID', 'CategoryID', 'ValueTraded', 'Buy', 'Sell'])
-Order = namedtuple('Order', ['TypeID', 'StationID', 'IsBuy', 'Price', 'Volume'])
-StationInfo = namedtuple('StationInfo', ['ID', 'Name', 'SystemID', 'RegionID'])
 items = dict()
+
+arg_parser = ArgumentParser(prog='calc-market-quality.py')
+arg_parser.add_argument('--orderset', type=str)
+args = arg_parser.parse_args()
 
 con = sqlite3.connect("sde.db")
 cur = con.cursor()
@@ -35,37 +40,17 @@ with open("top-traded.csv", "rt") as fh:
         except ValueError as e:
             raise RuntimeError("Failed to parse line {}: {}".format(row, e))
 
-def read_orderset():
-    r = csv.reader(sys.stdin, delimiter="\t")
-    for row in r:
-        # 911190994	41	2023-11-26T06:52:24Z	False	23572	23572	1	17.86	60000004	region	365	10000033	126876
-        _, typeID, _, is_buy, volume, _, _, price, stationID, _, _, _, _ = row
-        yield Order(TypeID=int(typeID), StationID=int(stationID), IsBuy=(is_buy=='True'), Price=float(price), Volume=int(volume))
-    yield Order(TypeID=0, StationID=0, IsBuy=False, Price=0, Volume=0)
-
-def get_station_info(stationID: int) -> StationInfo:
-    res = cur.execute("""
-    SELECT ID, Name, SystemID, RegionID
-    FROM Stations
-    WHERE ID = ?
-    """, [stationID])
-    r = res.fetchall()
-    if len(r) == 0:
-        log.info("Could not find station {}".format(stationID))
-        return None
-    if len(r) > 1:
-        raise RuntimeError("multiple values for a name from SDE")
-    row = r[0]
-    return StationInfo(row[0], row[1], row[2], row[3])
-
 def emit_station_stats(w, stationID: int, efficiencies: List[float]):
     coverage = len(efficiencies) / len(items)
+    log.info('efficiencies: {}'.format([(i, x) for i, x in efficiencies if x > 2]))
     if len(efficiencies)>0:
-        mean_efficiency = mean(efficiencies)
+        mean_efficiency = mean([e for i, e in efficiencies])
         eff_str = '{:.1f}%'.format((mean_efficiency-1)*100)
     else:
         eff_str = '-'
-    station_info = get_station_info(stationID)
+    station_info = lib.get_station_info(cur, stationID)
+    if station_info is None:
+        log.info("Could not find station {}".format(stationID))
     w.writerow([str(stationID), station_info.Name if station_info is not None else "-", '{:.1f}%'.format(coverage*100), eff_str])
 
 
@@ -75,7 +60,8 @@ current_station = None
 current_type = None
 current_station_price_efficiencies = None
 current_type_best_sell = None
-for x in read_orderset():
+log.info("orderset file '{}'".format(args.orderset))
+for x in lib.read_orderset(args.orderset):
     if current_type is not None and current_type != x.TypeID:
         if current_type_best_sell is not None:
             all_best_sell = items[current_type].Sell
@@ -84,8 +70,9 @@ for x in read_orderset():
                 efficiency = 1.0
             else:
                 efficiency = current_type_best_sell / all_best_sell
-            current_station_price_efficiencies.append(efficiency)
+            current_station_price_efficiencies.append((current_type, efficiency))
         current_type_best_sell = None
+        current_type = None
 
     if current_station is None or current_station != x.StationID:
         if current_station is not None:
