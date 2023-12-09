@@ -70,7 +70,10 @@ for x in lib.read_orderset(args.orderset):
                 efficiency = 1.0
             else:
                 efficiency = current_type_best_sell / all_best_sell
-            current_station_price_efficiencies.append((current_type, efficiency))
+
+            # Treat stupidly overpriced stuff as unavailable.
+            if efficiency <= 100:
+                current_station_price_efficiencies.append((current_type, efficiency))
         current_type_best_sell = None
         current_type = None
 
