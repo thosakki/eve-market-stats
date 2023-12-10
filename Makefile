@@ -19,6 +19,6 @@ latest-orderset-by-station-type.csv.gz	:	latest.csv.gz
 
 
 market-quality.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv calc-market-quality.py
-	./calc-market-quality.py --orderset $< |  sort -t , -k 3nr > $@
+	./calc-market-quality.py --orderset $< | awk 'NR == 1; NR > 1 {print $0 | "sort -t , -k 3nr"}' > $@
 
 .DELETE_ON_ERROR	:	top-traded.tsv

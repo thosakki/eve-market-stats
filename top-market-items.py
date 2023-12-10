@@ -70,7 +70,7 @@ def parse_agg_what(s: str) -> (int, int, bool):
     return (int(region), int(type_id), is_buy=='true')
 
 log.info('Reading buy & sell prices')
-for o in lib.read_orderset(args.orderset):
+for o, _ in lib.read_orderset(args.orderset):
     # Jita 4-4, Dodixie FNAP, Amarr EFA
     if o.StationID not in (60003760, 60011866, 60008494): continue
     if o.TypeID not in items: continue

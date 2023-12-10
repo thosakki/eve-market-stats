@@ -4,6 +4,7 @@ from argparse import ArgumentParser
 from collections import namedtuple
 import csv
 import logging
+import tempfile
 from typing import List, Optional, Tuple
 import sqlite3
 import sys
@@ -64,14 +65,24 @@ def emit_station_stats(w, stationID: int, efficiencies: List[float]):
     w.writerow([str(stationID), station_info.Name if station_info is not None else "-", '{:.1f}%'.format(coverage*100), eff_str])
 
 
-w = csv.writer(sys.stdout)
+orderset = None
+date = None
+temp_station_stats = tempfile.TemporaryFile(mode='w+t')
+w = csv.writer(temp_station_stats)
 w.writerow(['StationID', 'Station Name', 'Coverage %', 'Inefficiency %'])
+
 current_station = None
 current_type = None
 current_station_price_efficiencies = None
 current_type_best_sell = None
 log.info("orderset file '{}'".format(args.orderset))
-for x in lib.read_orderset(args.orderset):
+for x, item_orderset in lib.read_orderset(args.orderset):
+
+    # Update global variables.
+    assert orderset is None or orderset == item_orderset or item_orderset == 0
+    if item_orderset > 0: orderset = item_orderset
+    if date is None or date < x.Date: date = x.Date
+
     if current_type is not None and current_type != x.TypeID:
         if current_type_best_sell is not None:
             all_best_sell = items[current_type].Sell
@@ -97,7 +108,17 @@ for x in lib.read_orderset(args.orderset):
         current_type = x.TypeID
         if current_type_best_sell is None or current_type_best_sell > x.Price:
             current_type_best_sell = x.Price
-
 # read_orderset() always pads the end with one bogus order line with a dummy item & station,
 # so we never have to emit the final item or station returned.
 
+temp_station_stats.seek(0)
+r = csv.DictReader(temp_station_stats)
+fieldnames = r.fieldnames
+fieldnames.extend(['Orderset', 'Date'])
+w = csv.DictWriter(sys.stdout, fieldnames)
+w.writeheader()
+for row in r:
+    # Add global variables now to every row.
+    row['Orderset'] = orderset
+    row['Date'] = date.date().isoformat()
+    w.writerow(row)

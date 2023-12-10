@@ -1,9 +1,11 @@
 from collections import namedtuple
 import csv
+from datetime import datetime
 import gzip
 import sqlite3
+from typing import Iterator, Tuple
 
-Order = namedtuple('Order', ['TypeID', 'StationID', 'IsBuy', 'Price', 'Volume'])
+Order = namedtuple('Order', ['TypeID', 'StationID', 'IsBuy', 'Price', 'Volume', 'Date'])
 StationInfo = namedtuple('StationInfo', ['ID', 'Name', 'SystemID', 'RegionID'])
 TypeInfo = namedtuple('TypeInfo', ['ID', 'Name', 'GroupID', 'GroupName', 'CategoryID', 'CategoryName'])
 
@@ -37,12 +39,13 @@ def get_station_info(cur: sqlite3.Cursor, stationID: int) -> StationInfo:
     row = r[0]
     return StationInfo(row[0], row[1], row[2], row[3])
 
-def read_orderset(orderset_file: str):
+def read_orderset(orderset_file: str) -> Iterator[Tuple[Order, int]]:
     with gzip.open(orderset_file, "rt") as ofh:
         r = csv.reader(ofh, delimiter="\t")
         for row in r:
             # 911190994	41	2023-11-26T06:52:24Z	False	23572	23572	1	17.86	60000004	region	365	10000033	126876
-            _, typeID, _, is_buy, volume, _, _, price, stationID, _, _, _, _ = row
-            yield Order(TypeID=int(typeID), StationID=int(stationID), IsBuy=(is_buy=='True'), Price=float(price), Volume=int(volume))
-        yield Order(TypeID=0, StationID=0, IsBuy=False, Price=0, Volume=0)
+            _, typeID, date, is_buy, volume, _, _, price, stationID, _, _, _, orderset = row
+            date = date.rstrip('Z')  # python <3.11 doesn't know Z.
+            yield Order(TypeID=int(typeID), StationID=int(stationID), IsBuy=(is_buy=='True'), Price=float(price), Volume=int(volume), Date=datetime.fromisoformat(date)), int(orderset)
+        yield Order(TypeID=0, StationID=0, IsBuy=False, Price=0, Volume=0, Date=datetime.now()), 0
 
