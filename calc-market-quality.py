@@ -56,13 +56,13 @@ def emit_station_stats(w, stationID: int, efficiencies: List[float]):
 
     if len(efficiencies)>0:
         mean_efficiency = weighted_mean([(w,e) for i, w, e in efficiencies])
-        eff_str = '{:.1f}%'.format((mean_efficiency-1)*100)
+        eff_str = '{:.1f}'.format((mean_efficiency-1)*100)
     else:
         eff_str = '-'
     station_info = lib.get_station_info(cur, stationID)
     if station_info is None:
         log.info("Could not find station {}".format(stationID))
-    w.writerow([str(stationID), station_info.Name if station_info is not None else "-", '{:.1f}%'.format(coverage*100), eff_str])
+    w.writerow([str(stationID), station_info.Name if station_info is not None else "-", '{:.1f}'.format(coverage*100), eff_str])
 
 
 orderset = None

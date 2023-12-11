@@ -1,0 +1,32 @@
+[
+	{
+		"name": "StationID",
+		"type": "INT64",
+		"mode": "REQUIRED"
+	},
+	{
+		"name": "Station Name",
+		"type": "STRING",
+		"mode": "NULLABLE"
+	},
+	{
+		"name": "Coverage %",
+		"type": "DECIMAL",
+		"mode": "REQUIRED"
+	},
+	{
+		"name": "Inefficiency %",
+		"type": "DECIMAL",
+		"mode": "NULLABLE"
+	},
+	{
+		"name": "Orderset",
+		"type": "INT64",
+		"mode": "REQUIRED"
+	},
+	{
+		"name": "Date",
+		"type": "DATE",
+		"mode": "REQUIRED"
+	}
+]
