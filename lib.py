@@ -47,5 +47,5 @@ def read_orderset(orderset_file: str) -> Iterator[Tuple[Order, int]]:
             _, typeID, date, is_buy, volume, _, _, price, stationID, _, _, _, orderset = row
             date = date.rstrip('Z')  # python <3.11 doesn't know Z.
             yield Order(TypeID=int(typeID), StationID=int(stationID), IsBuy=(is_buy=='True'), Price=float(price), Volume=int(volume), Date=datetime.fromisoformat(date)), int(orderset)
-        yield Order(TypeID=0, StationID=0, IsBuy=False, Price=0, Volume=0, Date=datetime.now()), 0
+        yield Order(TypeID=0, StationID=0, IsBuy=False, Price=0, Volume=0, Date=None), 0
 

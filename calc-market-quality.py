@@ -81,7 +81,7 @@ for x, item_orderset in lib.read_orderset(args.orderset):
     # Update global variables.
     assert orderset is None or orderset == item_orderset or item_orderset == 0
     if item_orderset > 0: orderset = item_orderset
-    if date is None or date < x.Date: date = x.Date
+    if date is None or (x.Date is not None and date < x.Date): date = x.Date
 
     if current_type is not None and current_type != x.TypeID:
         if current_type_best_sell is not None:
