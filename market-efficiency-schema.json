@@ -5,17 +5,17 @@
 		"mode": "REQUIRED"
 	},
 	{
-		"name": "Station Name",
+		"name": "Station",
 		"type": "STRING",
 		"mode": "NULLABLE"
 	},
 	{
-		"name": "Coverage %",
+		"name": "CoveragePercent",
 		"type": "DECIMAL",
 		"mode": "REQUIRED"
 	},
 	{
-		"name": "Inefficiency %",
+		"name": "InefficiencyPercent",
 		"type": "DECIMAL",
 		"mode": "NULLABLE"
 	},
