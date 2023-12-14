@@ -1,4 +1,5 @@
 from datetime import datetime
+import sqlite3
 import unittest
 
 import lib
@@ -6,6 +7,53 @@ Order = lib.Order
 
 # Show full diff in unittest
 unittest.util._MAX_LENGTH=2000
+
+class TestDatabaseHelpers(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(":memory:")
+        c = self.conn.cursor()
+        c.execute("""
+        CREATE TABLE Types(
+          ID      INT PRIMARY KEY NOT NULL,
+          Name    TEXT NOT NULL,
+          GroupID INT NOT NULL
+        );""")
+        c.execute("""
+        CREATE UNIQUE INDEX Types_ByName ON Types(Name);
+        """)
+        c.execute("""
+        CREATE TABLE Groups(
+          ID      INT PRIMARY KEY NOT NULL,
+          Name    TEXT NOT NULL,
+          CategoryID INT NOT NULL
+        );""")
+        c.execute("""
+        CREATE UNIQUE INDEX Groups_ByName ON Groups(Name);
+        """)
+        c.execute("""
+        CREATE TABLE Categories(
+          ID      INT PRIMARY KEY NOT NULL,
+          Name    TEXT NOT NULL
+        );""")
+        c.execute("""
+        CREATE UNIQUE INDEX Categories_ByName ON Categories(Name);
+        """)
+        c.execute("""INSERT INTO Types VALUES(?,?,?)""", [1, "Multispectrum Energized Membrane I", 123])
+        c.execute("""INSERT INTO Types VALUES(?,?,?)""", [2, "Multispectrum Energized Membrane II", 123])
+        c.execute("""INSERT INTO Groups VALUES(?,?,?)""", [123, "Modules", 1234])
+        c.execute("""INSERT INTO Categories VALUES(?,?)""", [1234, "Cat"])
+
+    def tearDown(self):
+        self.conn.close()
+
+    def testGetSuccessful(self):
+        t = lib.get_type_info(self.conn.cursor(), 1)
+        self.assertEqual(t.ID, 1)
+        self.assertEqual(t.Name, "Multispectrum Energized Membrane I")
+        self.assertEqual(t.GroupID, 123)
+
+    def testGetFail(self):
+        self.assertIsNone(lib.get_type_info(self.conn.cursor(), 99))
 
 class TestReadOrderset(unittest.TestCase):
     def runTest(self):

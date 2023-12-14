@@ -18,7 +18,6 @@ def get_type_info(cur: sqlite3.Cursor, type_id: int) -> TypeInfo:
     """, [type_id])
     r = res.fetchall()
     if len(r) == 0:
-        log.info("Could not find type '{}'".format(type_id))
         return None
     if len(r) > 1:
         raise RuntimeError("multiple values for a name from SDE")
