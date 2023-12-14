@@ -8,7 +8,7 @@ Order = lib.Order
 # Show full diff in unittest
 unittest.util._MAX_LENGTH=2000
 
-class TestDatabaseHelpers(unittest.TestCase):
+class TestGetTypeInfo(unittest.TestCase):
     def setUp(self):
         self.conn = sqlite3.connect(":memory:")
         c = self.conn.cursor()
@@ -54,6 +54,32 @@ class TestDatabaseHelpers(unittest.TestCase):
 
     def testGetFail(self):
         self.assertIsNone(lib.get_type_info(self.conn.cursor(), 99))
+
+class TestGetTypeInfo(unittest.TestCase):
+    def setUp(self):
+        self.conn = sqlite3.connect(":memory:")
+        c = self.conn.cursor()
+        c.execute("""
+        CREATE TABLE Stations(
+          ID       INT PRIMARY KEY NOT NULL,
+          Name     TEXT NOT NULL,
+          SystemID INT NOT NULL,
+          RegionID INT NOT NULL
+        );""")
+        c.execute("""INSERT INTO Stations VALUES(?,?,?,?);""", [1234, "Amo - Minmatar Fleet Market", 123, 100])
+
+    def tearDown(self):
+        self.conn.close()
+
+    def testGetStationInfo(self):
+        s = lib.get_station_info(self.conn.cursor(), 1234)
+        self.assertEqual(s.ID, 1234)
+        self.assertEqual(s.Name, "Amo - Minmatar Fleet Market")
+        self.assertEqual(s.SystemID, 123)
+        self.assertEqual(s.RegionID, 100)
+
+    def testGetStationInfoFailed(self):
+        self.assertIsNone(lib.get_station_info(self.conn.cursor(), 9999))
 
 class TestReadOrderset(unittest.TestCase):
     def runTest(self):
