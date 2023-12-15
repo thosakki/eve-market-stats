@@ -1,13 +1,19 @@
 from collections import namedtuple
 import csv
+from dataclasses import dataclass
 from datetime import datetime
 import gzip
 import sqlite3
-from typing import Iterator, Tuple
+from typing import Iterator, Optional, Tuple
 
 Order = namedtuple('Order', ['TypeID', 'StationID', 'IsBuy', 'Price', 'Volume', 'Date'])
 StationInfo = namedtuple('StationInfo', ['ID', 'Name', 'SystemID', 'RegionID'])
 TypeInfo = namedtuple('TypeInfo', ['ID', 'Name', 'GroupID', 'GroupName', 'CategoryID', 'CategoryName'])
+
+@dataclass
+class OrdersetInfo:
+    Orderset: Optional[int]
+    Date: Optional[datetime.date]
 
 def get_type_info(cur: sqlite3.Cursor, type_id: int) -> TypeInfo:
     res = cur.execute("""
@@ -48,3 +54,10 @@ def read_orderset(orderset_file: str) -> Iterator[Tuple[Order, int]]:
             yield Order(TypeID=int(typeID), StationID=int(stationID), IsBuy=(is_buy=='True'), Price=float(price), Volume=int(volume), Date=datetime.fromisoformat(date)), int(orderset)
         yield Order(TypeID=0, StationID=0, IsBuy=False, Price=0, Volume=0, Date=None), 0
 
+def read_orderset_filter(orderset_file: str, oinfo: OrdersetInfo) -> Iterator[Order]:
+    for x, item_orderset in read_orderset(orderset_file):
+        yield x
+
+        assert oinfo.Orderset is None or oinfo.Orderset == item_orderset or item_orderset == 0
+        if item_orderset > 0: oinfo.Orderset = item_orderset
+        if oinfo.Date is None or (x.Date is not None and oinfo.Date < x.Date): oinfo.Date = x.Date

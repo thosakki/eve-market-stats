@@ -2,7 +2,6 @@
 
 from argparse import ArgumentParser
 from collections import namedtuple
-from dataclasses import dataclass
 import csv
 import datetime
 import logging
@@ -17,10 +16,6 @@ logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=loggi
 log = logging.getLogger(__name__)
 
 ItemSummary = namedtuple('ItemSummary', ['ID', 'Name', 'GroupID', 'CategoryID', 'ValueTraded', 'Buy', 'Sell'])
-@dataclass
-class OrdersetInfo:
-    Orderset: Optional[int]
-    Date: Optional[datetime.date]
 
 def weighted_mean(d: List[Tuple[float, float]]) -> float:
     return(sum(w*v for w,v in d)/sum(w for w,_ in d))
@@ -61,18 +56,13 @@ def emit_station_stats(w, stationID: int, efficiencies: List[Tuple[int, float, f
     w.writerow([str(stationID), station_info.Name if station_info is not None else "-", '{:.1f}'.format(coverage*100), eff_str])
 
 
-def get_station_stats(ofile: str, items: Dict[int, ItemSummary], oinfo: OrdersetInfo) -> Iterator[Tuple[int, List[Tuple[int, float, float]]]]:
+def get_station_stats(ofile: str, items: Dict[int, ItemSummary], oinfo: lib.OrdersetInfo) -> Iterator[Tuple[int, List[Tuple[int, float, float]]]]:
     current_station = None
     current_type = None
     current_station_price_efficiencies = None
     current_type_best_sell = None
     log.info("orderset file '{}'".format(ofile))
-    for x, item_orderset in lib.read_orderset(ofile):
-
-        # Update global variables.
-        assert oinfo.Orderset is None or oinfo.Orderset == item_orderset or item_orderset == 0
-        if item_orderset > 0: oinfo.Orderset = item_orderset
-        if oinfo.Date is None or (x.Date is not None and oinfo.Date < x.Date): oinfo.Date = x.Date
+    for x in lib.read_orderset_filter(ofile, oinfo):
 
         if current_type is not None and current_type != x.TypeID:
             if current_type_best_sell is not None:
@@ -102,7 +92,7 @@ def get_station_stats(ofile: str, items: Dict[int, ItemSummary], oinfo: Orderset
     # read_orderset() always pads the end with one bogus order line with a dummy item & station,
     # so we never have to emit the final item or station returned.
 
-def output(csv_fh: IO, oinfo: OrdersetInfo):
+def output(csv_fh: IO, oinfo: lib.OrdersetInfo):
     r = csv.DictReader(csv_fh)
     fieldnames = r.fieldnames
     fieldnames.extend(['Orderset', 'Date'])
@@ -130,7 +120,7 @@ def main():
     w = csv.writer(temp_station_stats)
     w.writerow(['StationID', 'Station Name', 'Coverage %', 'Inefficiency %'])
 
-    oinfo = OrdersetInfo(None, None)
+    oinfo = lib.OrdersetInfo(None, None)
     for s, e in get_station_stats(args.orderset, items, oinfo):
         emit_station_stats(w, s, e, c, items, args.dump_detail_for)
 
