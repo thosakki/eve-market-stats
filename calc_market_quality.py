@@ -61,7 +61,7 @@ def emit_station_stats(w, stationID: int, efficiencies: List[Tuple[int, float, f
     w.writerow([str(stationID), station_info.Name if station_info is not None else "-", '{:.1f}'.format(coverage*100), eff_str])
 
 
-def get_station_stats(ofile: str, items: Dict[int, ItemSummary], oinfo: OrdersetInfo) -> Iterator[Tuple[str, List[Tuple[int, float, float]]]]:
+def get_station_stats(ofile: str, items: Dict[int, ItemSummary], oinfo: OrdersetInfo) -> Iterator[Tuple[int, List[Tuple[int, float, float]]]]:
     current_station = None
     current_type = None
     current_station_price_efficiencies = None
@@ -124,7 +124,7 @@ def main():
     c = conn.cursor()
 
     with open("top-traded.csv","rt") as tt_fh:
-        items = {s.ID: s for s in get_most_traded_items(tt)}
+        items = {s.ID: s for s in get_most_traded_items(tt_fh)}
 
     temp_station_stats = tempfile.TemporaryFile(mode='w+t')
     w = csv.writer(temp_station_stats)
