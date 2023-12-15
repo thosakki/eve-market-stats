@@ -30,14 +30,13 @@ def parse_float(x: str) -> Optional[float]:
         return None
     return float(x)
 
-def get_most_traded_items(filename: str) -> Iterator[ItemSummary]:
-    with open(filename, "rt") as fh:
-        r = csv.DictReader(fh, delimiter=',')
-        for row in r:
-            try:
-                yield ItemSummary(ID=int(row['ID']), Name=row['Name'], GroupID=int(row['GroupID']), CategoryID=int(row['CategoryID']), ValueTraded=float(row['Value Traded']), Buy=parse_float(row['Buy']), Sell=parse_float(row['Sell']))
-            except ValueError as e:
-                raise RuntimeError("Failed to parse line {}: {}".format(row, e))
+def get_most_traded_items(fh: IO) -> Iterator[ItemSummary]:
+    r = csv.DictReader(fh, delimiter=',')
+    for row in r:
+        try:
+            yield ItemSummary(ID=int(row['ID']), Name=row['Name'], GroupID=int(row['GroupID']), CategoryID=int(row['CategoryID']), ValueTraded=float(row['Value Traded']), Buy=parse_float(row['Buy']), Sell=parse_float(row['Sell']))
+        except (ValueError, KeyError) as e:
+            raise RuntimeError("Failed to parse line {}: {}".format(row, e))
 
 def emit_station_stats(w, stationID: int, efficiencies: List[Tuple[int, float, float]], c: sqlite3.Cursor, items: Dict[int, ItemSummary], dump_detail_for: int):
     coverage = len(efficiencies) / len(items)
@@ -124,7 +123,8 @@ def main():
     conn = sqlite3.connect("sde.db")
     c = conn.cursor()
 
-    items = {s.ID: s for s in get_most_traded_items("top-traded.csv")}
+    with open("top-traded.csv","rt") as tt_fh:
+        items = {s.ID: s for s in get_most_traded_items(tt)}
 
     temp_station_stats = tempfile.TemporaryFile(mode='w+t')
     w = csv.writer(temp_station_stats)
