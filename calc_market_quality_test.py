@@ -1,8 +1,10 @@
-import calc_market_quality as calc
 import csv
 import io
 import sqlite3
 import unittest
+
+import calc_market_quality as calc
+import lib
 
 DUMMY_ITEM = calc.ItemSummary(1, "", 1, 1, 1, 1, 1)
 
@@ -18,7 +20,7 @@ class TestGetMostTradedItems(unittest.TestCase):
         d = io.StringIO("""ID,Name,GroupID,CategoryID,Value Traded,Buy,Sell
 2679,Scourge Rage Heavy Assault Missile,654,8,961403854,79.1,90.0
 """)
-        r = [x for x in calc.get_most_traded_items(d)]
+        r = [x for x in calc.get_most_traded_items(d, None)]
         self.assertEqual(r, [calc.ItemSummary(2679, "Scourge Rage Heavy Assault Missile", 654, 8, 961403854, 79.1, 90.0)])
 
     def testParseFailure(self):
@@ -26,7 +28,7 @@ class TestGetMostTradedItems(unittest.TestCase):
 2679    Scourge Rage Heavy Assault Missile  654 8
 """)
         with self.assertRaises(RuntimeError) as ctx:
-            [x for x in calc.get_most_traded_items(d)]
+            [x for x in calc.get_most_traded_items(d, None)]
 
 class TestGetStationStats(unittest.TestCase):
     def testSimple(self):
@@ -41,7 +43,7 @@ class TestGetStationStats(unittest.TestCase):
             73840: DUMMY_ITEM,  # only buy orders
             79211: calc.ItemSummary(ID=79211, Name="E", GroupID=5, CategoryID=5, ValueTraded=1000, Buy=400000, Sell=500000),
         }
-        s, e = next(calc.get_station_stats("testdata/orderset2.csv.gz", items, calc.OrdersetInfo(None, None)))
+        s, e = next(calc.get_station_stats("testdata/orderset2.csv.gz", items, lib.OrdersetInfo(None, None)))
         self.assertEqual(60000004, s)
         self.assertEqual(5, len(e))
         self.assertEqual((47821, 1000, 1.125), e[0])
