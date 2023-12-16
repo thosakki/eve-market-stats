@@ -29,4 +29,10 @@ tests	:
 	python3 calc_market_quality_test.py
 	python3 lib_test.py
 
+latest-orderset	:
+	curl https://market.fuzzwork.co.uk/api/orderset | jq '.orderset' > $@
+
+latest.csv.gz	:	latest-orderset
+	curl -o $@ https://market.fuzzwork.co.uk/orderbooks/orderset-$$(cat $<).csv.gz
+
 .DELETE_ON_ERROR	:	top-traded.tsv market-history market-quality.csv
