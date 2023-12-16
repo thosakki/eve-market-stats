@@ -11,30 +11,15 @@ import sqlite3
 import sys
 
 import lib
+import trade_lib
+
+ItemSummary = trade_lib.ItemSummary
 
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
 
-ItemSummary = namedtuple('ItemSummary', ['ID', 'Name', 'GroupID', 'CategoryID', 'ValueTraded', 'Buy', 'Sell'])
-
 def weighted_mean(d: List[Tuple[float, float]]) -> float:
     return(sum(w*v for w,v in d)/sum(w for w,_ in d))
-
-def parse_float(x: str) -> Optional[float]:
-    if x == '-':
-        return None
-    return float(x)
-
-def get_most_traded_items(fh: IO, max_items: Optional[int]) -> Iterator[ItemSummary]:
-    r = csv.DictReader(fh, delimiter=',')
-    count = 0
-    for row in r:
-        try:
-            yield ItemSummary(ID=int(row['ID']), Name=row['Name'], GroupID=int(row['GroupID']), CategoryID=int(row['CategoryID']), ValueTraded=float(row['Value Traded']), Buy=parse_float(row['Buy']), Sell=parse_float(row['Sell']))
-        except (ValueError, KeyError) as e:
-            raise RuntimeError("Failed to parse line {}: {}".format(row, e))
-        count += 1
-        if max_items and count >= max_items: return
 
 def emit_station_stats(w, stationID: int, efficiencies: List[Tuple[int, float, float]], c: sqlite3.Cursor, items: Dict[int, ItemSummary], dump_detail_for: int):
     coverage = len(efficiencies) / len(items)
@@ -118,7 +103,7 @@ def main():
     c = conn.cursor()
 
     with open("top-traded.csv","rt") as tt_fh:
-        items = {s.ID: s for s in get_most_traded_items(tt_fh, args.limit_top_traded_items)}
+        items = {s.ID: s for s in trade_lib.get_most_traded_items(tt_fh, args.limit_top_traded_items)}
         log.info("Basket of items loaded, {} items".format(len(items)))
 
     temp_station_stats = tempfile.TemporaryFile(mode='w+t')
