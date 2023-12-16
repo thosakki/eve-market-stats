@@ -38,7 +38,7 @@ def get_type_info(cur: sqlite3.Cursor, name: str) -> TypeInfo:
     """, [name])
     r = res.fetchall()
     if len(r) == 0:
-        log.info("Could not find type '{}'".format(name))
+        #log.info("Could not find type '{}'".format(name))
         return None
     if len(r) > 1:
         raise RuntimeError("multiple values for a name from SDE")
@@ -53,7 +53,7 @@ with open('popular.csv') as market_data_csv:
 
         ti = get_type_info(con, t)
         if ti is None:
-            log.warning('Unknown type {}'.format(t))
+            #log.warning('Unknown type {}'.format(t))
             continue
         if args.include_group is not None and ti.GroupID not in args.include_group: continue
         if args.exclude_group is not None and ti.GroupID in args.exclude_group: continue
