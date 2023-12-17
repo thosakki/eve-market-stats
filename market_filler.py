@@ -88,14 +88,17 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
             stock_quantity = min_order * math.ceil(stock_quantity/min_order)
 
         considered = 0
-        for s, p in availability.other_stations.items():
-            if p[0] is None or p[1] is None: continue
-            if s not in allowed_sources: continue
+        sources = [(s, p) for s, p in availability.other_stations.items()
+                # Must have a sell price and some stock and be an allowed source for shippping.
+                if p[0] is not None and p[1] is not None and s in allowed_sources]
+        for s, p in sorted(sources, key=lambda i: i[1][0]):
             station_info = lib.get_station_info(sde_conn, s)
             considered += 1
             if p[0] < availability.fair_price and p[1] >= stock_quantity/2:
                 buy_quantity = min(p[1], stock_quantity)
                 w.writerow([type_id, type_info.Name, s, station_info.Name, p[0], buy_quantity, p[0]*buy_quantity])
+                # Found best station to source this item - don't say any others.
+                break
             else:
                 log.debug("{}({}) not available in quantity at station {} (price {} quantity {})".format(type_info.Name, type_id, station_info.Name, p[0], p[1]))
         if considered == 0:
