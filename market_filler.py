@@ -30,8 +30,10 @@ def get_pricing(conn: sqlite3.Connection, type_id: int, date: datetime.date) -> 
             r[0]: (r[2], r[3]) for r in res.fetchall()
             }
     res = conn.execute("""
-    SELECT SUM(Sell*SellVolume)/SUM(SellVolume) FROM PriceHistory
-    WHERE TypeID=? AND Date > date(?, "-3 months")""", [type_id, date.isoformat()])
+    SELECT AVG(daily_price) FROM (
+      SELECT Date,MIN(Sell) AS daily_price FROM PriceHistory
+      WHERE TypeID=? AND Date > date(?, "-3 months")
+      GROUP BY Date)""", [type_id, date.isoformat()])
     fair_price = res.fetchall()[0][0]
     return ItemPricing(other_stations=current_prices, fair_price=fair_price)
 
