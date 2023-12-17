@@ -69,7 +69,7 @@ def guess_min_order(i: trade_lib.ItemSummary):
     return 1
 
 def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, items: Dict[int, trade_lib.ItemSummary], station_prices: Dict[int, float], allowed_sources: Set[int], date: datetime.date, w):
-    w.writerow(["TypeID", "Item Name", "StationID", "Station Name", "Price", "Quantity", "Value"])
+    w.writerow(["TypeID", "Item Name", "Quantity", "Price", "Value", "StationID", "Station Name"])
     for type_id, info in items.items():
         type_info = lib.get_type_info(sde_conn, type_id)
         min_order = guess_min_order(type_info)
@@ -96,7 +96,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
             considered += 1
             if p[0] < availability.fair_price and p[1] >= stock_quantity/2:
                 buy_quantity = min(p[1], stock_quantity)
-                w.writerow([type_id, type_info.Name, s, station_info.Name, p[0], buy_quantity, p[0]*buy_quantity])
+                w.writerow([type_id, type_info.Name, p[0], p[0]*buy_quantity, buy_quantity, s, station_info.Name])
                 # Found best station to source this item - don't say any others.
                 break
             else:
