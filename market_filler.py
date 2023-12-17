@@ -58,11 +58,21 @@ def process_orderset(ofile: str, station: int, oinfo: lib.OrdersetInfo) -> Itera
     # read_orderset() always pads the end with one bogus order line with a dummy item & station,
     # so we never have to emit the final item or station returned.
 
+def guess_min_order(i: trade_lib.ItemSummary):
+    if i.CategoryID == 8:  # Charges
+        if i.GroupID in (86, 374, 375):  # Crystals
+            return 20
+        else:
+            return 2000
+    if i.CategoryID == 87:  # Fighter
+        return 10
+    return 1
 
 def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, items: Dict[int, trade_lib.ItemSummary], station_prices: Dict[int, float], allowed_sources: Set[int], date: datetime.date, w):
     w.writerow(["TypeID", "Item Name", "StationID", "Station Name", "Price", "Quantity", "Value"])
     for type_id, info in items.items():
         type_info = lib.get_type_info(sde_conn, type_id)
+        min_order = guess_min_order(type_info)
         availability = get_pricing(prices_conn, type_id, date)
 
         if type_id in station_prices and station_prices[type_id] < availability.fair_price * 1.2:
@@ -71,9 +81,11 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
 
         market_quantity = math.floor(info.ValueTraded / availability.fair_price)
         stock_quantity = math.floor(market_quantity / 50)
-        if stock_quantity <= 0:
-            log.debug("{}({}): market_quantity={}, stock_quantity={}".format(type_info.Name, type_id, market_quantity, stock_quantity))
+        if stock_quantity < min_order:
+            log.debug("{}({}): market_quantity={} min_order={} - not ordering".format(type_info.Name, type_id, market_quantity, min_order))
             continue
+        else:
+            stock_quantity = min_order * math.ceil(stock_quantity/min_order)
 
         considered = 0
         for s, p in availability.other_stations.items():
