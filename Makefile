@@ -1,4 +1,4 @@
-ALL	:	top-traded.csv market-quality.csv # market-history
+ALL	:	top-traded.csv market-quality.csv market-history
 
 sde/fsd/typeIDs.yaml	:
 	curl -O https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip
@@ -21,13 +21,12 @@ latest-orderset-by-station-type.csv.gz	:	latest.csv.gz
 market-quality.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv calc_market_quality.py
 	./calc_market_quality.py --orderset $< --limit-top-traded-items 1000 | awk 'NR == 1; NR > 1 {print $0 | "sort -t , -k 3nr"}' > $@
 
+bq-load	:
+	bq load --source_format=CSV --null_marker - --skip_leading_rows=1 eve_markets.market_quality market-quality.csv market-efficiency-schema.json
+
 market-history	:	latest-orderset-by-station-type.csv.gz top-traded.csv
 	./add_orderset_to_market_history.py --orderset latest-orderset-by-station-type.csv.gz --filter_items top-traded.csv --extra_stations 1042137702248 60015180
 	touch $@
-
-tests	:
-	python3 calc_market_quality_test.py
-	python3 lib_test.py
 
 latest-orderset	:
 	curl https://market.fuzzwork.co.uk/api/orderset | jq '.orderset' > $@
@@ -35,7 +34,11 @@ latest-orderset	:
 latest.csv.gz	:	latest-orderset
 	curl -o $@ https://market.fuzzwork.co.uk/orderbooks/orderset-$$(cat $<).csv.gz
 
-market-filler.csv	:	latest-orderset-by-station-type.csv.gz
+market-filler.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv
 	python3 market_filler.py --orderset latest-orderset-by-station-type.csv.gz --from-stations 60003760 60011866 --limit-top-traded-items 1000 --station 60005686 > $@
+
+tests	:
+	python3 calc_market_quality_test.py
+	python3 lib_test.py
 
 .DELETE_ON_ERROR	:	top-traded.tsv market-history market-quality.csv
