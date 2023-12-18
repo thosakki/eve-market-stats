@@ -29,29 +29,13 @@ TypeInfo = lib.TypeInfo
 con = sqlite3.connect("sde.db")
 cur = con.cursor()
 
-def get_type_info(cur: sqlite3.Cursor, name: str) -> TypeInfo:
-    res = cur.execute("""
-    SELECT Types.ID, Types.name, Groups.ID, Groups.Name, Categories.ID, Categories.Name
-    FROM Types JOIN Groups ON (Types.GroupID = Groups.ID)
-        JOIN Categories ON (Categories.ID = Groups.CategoryID)
-    WHERE Types.Name = ?
-    """, [name])
-    r = res.fetchall()
-    if len(r) == 0:
-        #log.info("Could not find type '{}'".format(name))
-        return None
-    if len(r) > 1:
-        raise RuntimeError("multiple values for a name from SDE")
-    row = r[0]
-    return TypeInfo(row[0], row[1], row[2], row[3], row[4], row[5])
-
 log.info('Reading trade volumes...')
 with open('popular.csv') as market_data_csv:
     reader = csv.DictReader(market_data_csv)
     for r in reader:
         t = r['Commodity']
 
-        ti = get_type_info(con, t)
+        ti = lib.get_type_info_byname(con, t)
         if ti is None:
             #log.warning('Unknown type {}'.format(t))
             continue

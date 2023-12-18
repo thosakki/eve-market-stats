@@ -68,14 +68,14 @@ def guess_min_order(i: trade_lib.ItemSummary):
         return 10
     return 1
 
-def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, items: Dict[int, trade_lib.ItemSummary], station_prices: Dict[int, float], allowed_sources: Set[int], date: datetime.date, w):
+def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, items: Dict[int, trade_lib.ItemSummary], station_prices: Dict[int, float], allowed_sources: Set[int], industry_items: Set[int], date: datetime.date, w):
     w.writerow(["TypeID", "Item Name", "Quantity", "Price", "Value", "StationID", "Station Name"])
     for type_id, info in items.items():
         type_info = lib.get_type_info(sde_conn, type_id)
         min_order = guess_min_order(type_info)
         availability = get_pricing(prices_conn, type_id, date)
 
-        if type_id in station_prices and station_prices[type_id] < availability.fair_price * 1.2:
+        if type_id in station_prices and station_prices[type_id] < availability.fair_price * 1.25:
             log.debug("{}({}): already available at {} (vs {})".format(type_info.Name, type_id, station_prices[type_id], availability.fair_price))
             continue
 
@@ -87,6 +87,10 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
         else:
             stock_quantity = min_order * math.ceil(stock_quantity/min_order)
 
+        if type_id in industry_items:
+            w.writerow([type_id, type_info.Name, stock_quantity, availability.fair_price, availability.fair_price*stock_quantity, '-', 'Industry'])
+            continue
+
         considered = 0
         sources = [(s, p) for s, p in availability.other_stations.items()
                 # Must have a sell price and some stock and be an allowed source for shippping.
@@ -96,7 +100,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
             considered += 1
             if p[0] < availability.fair_price and p[1] >= stock_quantity/2:
                 buy_quantity = min(p[1], stock_quantity)
-                w.writerow([type_id, type_info.Name, p[0], p[0]*buy_quantity, buy_quantity, s, station_info.Name])
+                w.writerow([type_id, type_info.Name, buy_quantity, p[0], p[0]*buy_quantity, s, station_info.Name])
                 # Found best station to source this item - don't say any others.
                 break
             else:
@@ -104,9 +108,22 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
         if considered == 0:
             log.debug("{}({}): wanted to get but no sources considered. other_stations={} vs allowed={}".format(type_info.Name, type_id, availability.other_stations, allowed_sources))
 
+def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
+    res = set()
+    with open(filename, "rt") as f:
+        for i in f:
+            name = i.rstrip()
+            item = lib.get_type_info_byname(conn.cursor(), name)
+            if item is None:
+                log.warning("unrecognised item {}".format(name))
+                continue
+            res.add(item.ID)
+    return res
+
 def main():
     arg_parser = ArgumentParser(prog='calc-market-quality.py')
     arg_parser.add_argument('--orderset', type=str)
+    arg_parser.add_argument('--industry', type=str)
     arg_parser.add_argument('--limit-top-traded-items', type=int)
     arg_parser.add_argument('--from-stations', nargs='*', type=int)
     arg_parser.add_argument('--station', type=int)
@@ -119,6 +136,8 @@ def main():
         items = {s.ID: s for s in trade_lib.get_most_traded_items(tt_fh, args.limit_top_traded_items)}
         log.info("Basket of items loaded, {} items".format(len(items)))
 
+    industry_items = read_industry_items(sde_conn, args.industry) if args.industry else set()
+
     oinfo = lib.OrdersetInfo(None, None)
     prices_at_station = {
         i: p for i, p in process_orderset(args.orderset, args.station, oinfo)
@@ -126,7 +145,7 @@ def main():
 
     log.info("Prices at station {} retrieved: {} items available".format(args.station, len(prices_at_station)))
     w = csv.writer(sys.stdout)
-    suggest_stock(sde_conn, prices_conn, items, prices_at_station, set(args.from_stations), oinfo.Date.date(), w)
+    suggest_stock(sde_conn, prices_conn, items, prices_at_station, set(args.from_stations), industry_items, oinfo.Date.date(), w)
 
 
 if __name__ == "__main__":
