@@ -69,13 +69,13 @@ def guess_min_order(i: trade_lib.ItemSummary):
     return 1
 
 def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, items: Dict[int, trade_lib.ItemSummary], station_prices: Dict[int, float], allowed_sources: Set[int], industry_items: Set[int], date: datetime.date, w):
-    w.writerow(["TypeID", "Item Name", "Quantity", "Price", "Value", "StationID", "Station Name"])
+    w.writerow(["TypeID", "Item Name", "Quantity", "Price", "Value", "My Sell Price", "StationID", "Station Name"])
     for type_id, info in items.items():
         type_info = lib.get_type_info(sde_conn, type_id)
         min_order = guess_min_order(type_info)
         availability = get_pricing(prices_conn, type_id, date)
 
-        if type_id in station_prices and station_prices[type_id] < availability.fair_price * 1.25:
+        if type_id in station_prices and station_prices[type_id] < availability.fair_price * 1.22:
             log.debug("{}({}): already available at {} (vs {})".format(type_info.Name, type_id, station_prices[type_id], availability.fair_price))
             continue
 
@@ -88,7 +88,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
             stock_quantity = min_order * math.ceil(stock_quantity/min_order)
 
         if type_id in industry_items:
-            w.writerow([type_id, type_info.Name, stock_quantity, availability.fair_price, availability.fair_price*stock_quantity, '-', 'Industry'])
+            w.writerow([type_id, type_info.Name, stock_quantity, availability.fair_price*0.9, availability.fair_price*stock_quantity, availability.fair_price*1.1, '-', 'Industry'])
             continue
 
         considered = 0
@@ -98,9 +98,9 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
         for s, p in sorted(sources, key=lambda i: i[1][0]):
             station_info = lib.get_station_info(sde_conn, s)
             considered += 1
-            if p[0] < availability.fair_price and p[1] >= stock_quantity/2:
+            if p[0] < availability.fair_price*0.98 and p[1] >= stock_quantity/2:
                 buy_quantity = min(p[1], stock_quantity)
-                w.writerow([type_id, type_info.Name, buy_quantity, p[0], p[0]*buy_quantity, s, station_info.Name])
+                w.writerow([type_id, type_info.Name, buy_quantity, p[0], p[0]*buy_quantity, p[0]*1.18, s, station_info.Name])
                 # Found best station to source this item - don't say any others.
                 break
             else:
