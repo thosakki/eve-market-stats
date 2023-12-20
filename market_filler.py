@@ -81,7 +81,9 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
 
         market_quantity = math.floor(info.ValueTraded / availability.fair_price)
         stock_quantity = math.floor(market_quantity / 50)
-        if stock_quantity < min_order:
+
+        # Only do not order if the stock quantity is much less than our minimum order size.
+        if 4*stock_quantity < min_order:
             log.debug("{}({}): market_quantity={} min_order={} - not ordering".format(type_info.Name, type_id, market_quantity, min_order))
             continue
         else:
