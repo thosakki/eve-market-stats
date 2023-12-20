@@ -100,7 +100,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
             considered += 1
             if p[1] < math.ceil(stock_quantity/5):
                 log.debug("{}({}) not available in quantity at station {} (price {} quantity {} want quantity {})".format(type_info.Name, type_id, station_info.Name, p[0], p[1], stock_quantity))
-            if p[0] > availability.fair_price*0.98:
+            elif p[0] > availability.fair_price*0.98:
                 log.debug("{}({}) not available at good price at station {} (price {} quantity {} want price {})".format(type_info.Name, type_id, station_info.Name, p[0], p[1], availability.fair_price))
             else:
                 buy_quantity = min(p[1], stock_quantity)
