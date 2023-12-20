@@ -34,7 +34,7 @@ latest-orderset	:
 latest.csv.gz	:	latest-orderset
 	curl -o $@ https://market.fuzzwork.co.uk/orderbooks/orderset-$$(cat $<).csv.gz
 
-market-filler.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv industry-items.txt
+market-filler.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv industry-items.txt market-history
 	python3 market_filler.py --orderset latest-orderset-by-station-type.csv.gz --from-stations 60003760 60011866 --limit-top-traded-items 1000 --station 60005686 --industry industry-items.txt > $@
 
 tests	:
