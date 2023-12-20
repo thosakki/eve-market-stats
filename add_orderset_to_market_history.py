@@ -46,10 +46,12 @@ def load(orderset_fname: str, stations: Set[int]) -> Iterator[ItemMarket]:
             if current_buy is None or current_buy < o.Price:
                 current_buy = o.Price
         else:
-            if current_sell is None or current_sell > o.Price:
-                if current_sell is None or current_sell > o.Price*1.01: current_sell_vol = 0
-                current_sell = o.Price
+            if current_sell is None or current_sell*1.01 >= o.Price:
+                # Accumulate orders with a price close to the best price.
+                if current_sell is None or current_sell >= o.Price*1.01: current_sell_vol = 0
                 current_sell_vol += o.Volume
+
+                if current_sell is None or current_sell > o.Price: current_sell = o.Price
 
 def emit_item(conn: sqlite3.Connection, date: datetime.date, im: ItemMarket):
     conn.execute("""
