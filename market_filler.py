@@ -98,13 +98,15 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
         for s, p in sorted(sources, key=lambda i: i[1][0]):
             station_info = lib.get_station_info(sde_conn, s)
             considered += 1
-            if p[0] < availability.fair_price*0.98 and p[1] >= stock_quantity/2:
+            if p[1] < math.ceil(stock_quantity/5):
+                log.debug("{}({}) not available in quantity at station {} (price {} quantity {} want quantity {})".format(type_info.Name, type_id, station_info.Name, p[0], p[1], stock_quantity))
+            if p[0] > availability.fair_price*0.98:
+                log.debug("{}({}) not available at good price at station {} (price {} quantity {} want price {})".format(type_info.Name, type_id, station_info.Name, p[0], p[1], availability.fair_price))
+            else:
                 buy_quantity = min(p[1], stock_quantity)
                 w.writerow([type_id, type_info.Name, buy_quantity, p[0], p[0]*buy_quantity, p[0]*1.18, s, station_info.Name])
                 # Found best station to source this item - don't say any others.
                 break
-            else:
-                log.debug("{}({}) not available in quantity at station {} (price {} quantity {})".format(type_info.Name, type_id, station_info.Name, p[0], p[1]))
         if considered == 0:
             log.debug("{}({}): wanted to get but no sources considered. other_stations={} vs allowed={}".format(type_info.Name, type_id, availability.other_stations, allowed_sources))
 
