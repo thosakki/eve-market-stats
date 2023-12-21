@@ -80,16 +80,17 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
             continue
 
         market_quantity = math.floor(info.ValueTraded / availability.fair_price)
-        stock_quantity = math.floor(market_quantity / 50)
+        stock_quantity = math.floor(market_quantity / 25)
 
         # Only do not order if the stock quantity is much less than our minimum order size.
-        if 4*stock_quantity < min_order:
+        if 2*stock_quantity < min_order:
             log.debug("{}({}): market_quantity={} min_order={} - not ordering".format(type_info.Name, type_id, market_quantity, min_order))
             continue
         else:
             stock_quantity = min_order * math.ceil(stock_quantity/min_order)
 
-        if type_id in industry_items:
+        # Tech 1 industry
+        if type_id in industry_items and type_info.Name[-3:0] == " I":
             w.writerow([type_id, type_info.Name, stock_quantity, availability.fair_price*0.9, availability.fair_price*stock_quantity, availability.fair_price*1.1, '-', 'Industry'])
             continue
 
@@ -109,6 +110,11 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
                 w.writerow([type_id, type_info.Name, buy_quantity, p[0], p[0]*buy_quantity, p[0]*1.18, s, station_info.Name])
                 # Found best station to source this item - don't say any others.
                 break
+
+        if considered == 0 and type_id in industry_items:
+            w.writerow([type_id, type_info.Name, stock_quantity, availability.fair_price, availability.fair_price*stock_quantity, availability.fair_price*1.2, '-', 'Industry'])
+            continue
+
         if considered == 0:
             log.debug("{}({}): wanted to get but no sources considered. other_stations={} vs allowed={}".format(type_info.Name, type_id, availability.other_stations, allowed_sources))
 
