@@ -33,6 +33,7 @@ def get_pricing(conn: sqlite3.Connection, type_id: int, date: datetime.date) -> 
     SELECT AVG(daily_price) FROM (
       SELECT Date,MIN(Sell) AS daily_price FROM PriceHistory
       WHERE TypeID=? AND Date > date(?, "-3 months")
+        AND StationID IN (60003760, 60011866, 60008494) -- Jita 4-4, Dodixie FNAP, Amarr EFA
       GROUP BY Date)""", [type_id, date.isoformat()])
     fair_price = res.fetchall()[0][0]
     return ItemPricing(other_stations=current_prices, fair_price=fair_price)
@@ -69,54 +70,59 @@ def guess_min_order(i: trade_lib.ItemSummary):
     return 1
 
 def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, items: Dict[int, trade_lib.ItemSummary], station_prices: Dict[int, float], allowed_sources: Set[int], industry_items: Set[int], date: datetime.date, w):
-    w.writerow(["TypeID", "Item Name", "Quantity", "Price", "Value", "My Sell Price", "StationID", "Station Name"])
+    w.writerow(["TypeID", "Item Name", "Quantity", "Max Buy", "Value", "My Sell Price", "StationID", "Station Name", "Industry", "Current Price", "Notes"])
     for type_id, info in items.items():
         type_info = lib.get_type_info(sde_conn, type_id)
-        min_order = guess_min_order(type_info)
         availability = get_pricing(prices_conn, type_id, date)
+        min_order = guess_min_order(info)
+        current_price = station_prices.get(type_id)
+        notes = []
+        buy_quantity = buy_price = sell_price = station_id = station_name = None
+        industry = False
 
-        if type_id in station_prices and station_prices[type_id] < availability.fair_price * 1.22:
-            log.debug("{}({}): already available at {} (vs {})".format(type_info.Name, type_id, station_prices[type_id], availability.fair_price))
-            continue
-
-        market_quantity = math.floor(info.ValueTraded / availability.fair_price)
-        stock_quantity = math.floor(market_quantity / 25)
-
-        # Only do not order if the stock quantity is much less than our minimum order size.
-        if 2*stock_quantity < min_order:
-            log.debug("{}({}): market_quantity={} min_order={} - not ordering".format(type_info.Name, type_id, market_quantity, min_order))
-            continue
+        if current_price is not None and current_price < availability.fair_price * 1.22:
+            notes.append("already available at {} (vs {})".format(station_prices[type_id], availability.fair_price))
         else:
-            stock_quantity = min_order * math.ceil(stock_quantity/min_order)
+            market_quantity = math.floor(info.ValueTraded / availability.fair_price)
+            stock_quantity = math.floor(market_quantity / 25)
 
-        # Tech 1 industry
-        if type_id in industry_items and type_info.Name[-3:0] == " I":
-            w.writerow([type_id, type_info.Name, stock_quantity, availability.fair_price*0.9, availability.fair_price*stock_quantity, availability.fair_price*1.1, '-', 'Industry'])
-            continue
-
-        considered = 0
-        sources = [(s, p) for s, p in availability.other_stations.items()
-                # Must have a sell price and some stock and be an allowed source for shippping.
-                if p[0] is not None and p[1] is not None and s in allowed_sources]
-        for s, p in sorted(sources, key=lambda i: i[1][0]):
-            station_info = lib.get_station_info(sde_conn, s)
-            considered += 1
-            if p[1] < math.ceil(stock_quantity/5):
-                log.debug("{}({}) not available in quantity at station {} (price {} quantity {} want quantity {})".format(type_info.Name, type_id, station_info.Name, p[0], p[1], stock_quantity))
-            elif p[0] > availability.fair_price*0.98:
-                log.debug("{}({}) not available at good price at station {} (price {} quantity {} want price {})".format(type_info.Name, type_id, station_info.Name, p[0], p[1], availability.fair_price))
+            # Only do not order if the stock quantity is much less than our minimum order size.
+            if 2*stock_quantity < min_order:
+                notes.append("order size {} too small".format(min_order))
             else:
-                buy_quantity = min(p[1], stock_quantity)
-                w.writerow([type_id, type_info.Name, buy_quantity, p[0], p[0]*buy_quantity, p[0]*1.18, s, station_info.Name])
-                # Found best station to source this item - don't say any others.
-                break
+                stock_quantity = min_order * math.ceil(stock_quantity/min_order)
 
-        if considered == 0 and type_id in industry_items:
-            w.writerow([type_id, type_info.Name, stock_quantity, availability.fair_price, availability.fair_price*stock_quantity, availability.fair_price*1.2, '-', 'Industry'])
-            continue
+                considered = 0
+                sources = [(s, p) for s, p in availability.other_stations.items()
+                    # Must have a sell price and some stock and be an allowed source for shippping.
+                    if p[0] is not None and p[1] is not None and s in allowed_sources]
+                for s, p in sorted(sources, key=lambda i: i[1][0]):
+                    station_info = lib.get_station_info(sde_conn, s)
+                    considered += 1
+                    if p[1] < math.ceil(stock_quantity/5):
+                        notes.append("not available in quantity at station {} (price {} quantity {} want quantity {})".format(station_info.Name, p[0], p[1], stock_quantity))
+                    elif p[0] > availability.fair_price*0.98:
+                        notes.append("not available at good price at station {} (price {} quantity {} want price {})".format(station_info.Name, p[0], p[1], availability.fair_price))
+                    else:
+                        buy_quantity = min(p[1], stock_quantity)
+                        sell_price = availability.fair_price * 1.18
+                        buy_price = p[0]*1.01 if p[0] < sell_price/1.25 else sell_price/1.25
+                        station_id = s
+                        station_name = station_info.Name
+                        # Found best station to source this item - don't say any others.
+                        break
 
-        if considered == 0:
-            log.debug("{}({}): wanted to get but no sources considered. other_stations={} vs allowed={}".format(type_info.Name, type_id, availability.other_stations, allowed_sources))
+                if buy_quantity is None and type_id in industry_items:
+                    industry = True
+                    sell_price = availability.fair_price*1.2
+                    buy_price = availability.fair_price
+                    buy_quantity = availability.fair_price*stock_quantity
+                elif considered == 0:
+                    notes.append("wanted to get but no sources considered. other_stations={} vs allowed={}".format(availability.other_stations, allowed_sources))
+
+        w.writerow([type_id, type_info.Name,
+            buy_quantity, buy_price, buy_price*buy_quantity if buy_quantity else None,
+            sell_price, station_id, station_name, "Y" if industry else "N", ",".join(notes)])
 
 def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
     res = set()
