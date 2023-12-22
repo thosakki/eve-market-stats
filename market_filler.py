@@ -80,7 +80,9 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
         buy_quantity = buy_price = sell_price = station_id = station_name = None
         industry = False
 
-        if current_price is not None and current_price < availability.fair_price * 1.22:
+        if availability.fair_price is None:
+            notes.append("no fair price available")
+        elif current_price is not None and current_price < availability.fair_price * 1.22:
             notes.append("already available at {} (vs {})".format(station_prices[type_id], availability.fair_price))
         else:
             market_quantity = math.floor(info.ValueTraded / availability.fair_price)
@@ -98,6 +100,8 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
                     if p[0] is not None and p[1] is not None and s in allowed_sources]
                 for s, p in sorted(sources, key=lambda i: i[1][0]):
                     station_info = lib.get_station_info(sde_conn, s)
+                    if station_info is None:
+                        log.info("station {} unknown", s)
                     considered += 1
                     if p[1] < math.ceil(stock_quantity/5):
                         notes.append("not available in quantity at station {} (price {} quantity {} want quantity {})".format(station_info.Name, p[0], p[1], stock_quantity))
