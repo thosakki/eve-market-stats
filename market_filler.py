@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 
 from argparse import ArgumentParser
+from collections import defaultdict
 import csv
 from dataclasses import dataclass
 import datetime
@@ -8,7 +9,7 @@ import logging
 import math
 import sqlite3
 import sys
-from typing import Dict, Iterator, Set, Tuple
+from typing import Dict, Iterator, List, Optional, Set, Tuple
 
 import lib
 import trade_lib
@@ -38,26 +39,59 @@ def get_pricing(conn: sqlite3.Connection, type_id: int, date: datetime.date) -> 
     fair_price = res.fetchall()[0][0]
     return ItemPricing(other_stations=current_prices, fair_price=fair_price)
 
-def process_orderset(ofile: str, station: int, oinfo: lib.OrdersetInfo) -> Iterator[Tuple[int, float]]:
-    current_type = None
-    current_type_best_sell = None
-    log.info("orderset file '{}'".format(ofile))
-    for x in lib.read_orderset_filter(ofile, oinfo):
+@dataclass
+class ItemModel:
+    trade : trade_lib.ItemSummary
+    buy: Optional[float]  # the price at which we are willing to buy
+    sell: Optional[float] # the price at which we are happy to see this selling
+    newSell: Optional[float] # the price we would list new sales at
+    notes: List[str]
 
-        if current_type is not None and current_type != x.TypeID:
-            if current_type_best_sell is not None:
-                yield (current_type, current_type_best_sell)
-            current_type_best_sell = None
-            current_type = None
+def pick_prices(prices_conn: sqlite3.Connection, items: Dict[int, trade_lib.ItemSummary], date) -> Dict[int, trade_lib.ItemSummary]:
+    model = dict()
+    for type_id, trade_summary in items.items():
+        availability = get_pricing(prices_conn, type_id, date)
+        imodel = ItemModel(trade=trade_summary, notes = [], buy=None, sell=None, newSell=None)
+        model[type_id] = imodel
 
-        if station != x.StationID: continue
+        if availability.fair_price is None:
+            imodel.notes.append("no fair price available")
+            continue
+
+        # allow buying slightly over the fair price.
+        imodel.buy = availability.fair_price*1.01
+        imodel.newSell = availability.fair_price*1.2
+        # Acceptable sell price is slightly higher, we need some hysteresis so that we don't
+        # keep adjusting orders constantly.
+        imodel.sell = availability.fair_price*1.22
+    return model
+
+def get_orderset_info(ofile: str) -> lib.OrdersetInfo:
+    oinfo = lib.OrdersetInfo(None, None)
+    for _ in lib.read_orderset_filter(ofile, oinfo):
+        pass
+    return oinfo
+
+def process_orderset(ofile: str, market_model: Dict[int, ItemModel], stations: Set[int]) -> Tuple[Dict[int, Dict[int, List]], Dict[int, Tuple[float, int]]]:
+    # Per item, per station, stocks below buy and sell prices
+    stock_per_station = defaultdict(lambda: defaultdict(lambda: [0,0]))
+    lowest_sell = defaultdict(lambda: (1e99,0))
+    log.info("reading orderset file '{}'".format(ofile))
+    for x,_ in lib.read_orderset(ofile):
+        if x.StationID not in stations: continue
+        if x.TypeID not in market_model: continue
         if x.IsBuy: continue
 
-        current_type = x.TypeID
-        if current_type_best_sell is None or current_type_best_sell > x.Price:
-            current_type_best_sell = x.Price
-    # read_orderset() always pads the end with one bogus order line with a dummy item & station,
-    # so we never have to emit the final item or station returned.
+        if x.Price < market_model[x.TypeID].buy:
+            stock_per_station[x.TypeID][x.StationID][0] += x.Volume
+        if x.Price < market_model[x.TypeID].sell:
+            stock_per_station[x.TypeID][x.StationID][1] += x.Volume
+        if x.Price < lowest_sell[x.TypeID][0]:
+            lowest_sell[x.TypeID] = (x.Price, x.StationID)
+
+    # Convert to a regular dict, to avoid exposing implementation.
+    return ({i: dict(v) for i,v in stock_per_station.items()},
+            dict(lowest_sell))
 
 def guess_min_order(i: trade_lib.ItemSummary):
     if i.CategoryID == 8:  # Charges
@@ -69,64 +103,51 @@ def guess_min_order(i: trade_lib.ItemSummary):
         return 10
     return 1
 
-def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, items: Dict[int, trade_lib.ItemSummary], station_prices: Dict[int, float], allowed_sources: Set[int], industry_items: Set[int], date: datetime.date, w):
-    w.writerow(["TypeID", "Item Name", "Quantity", "Max Buy", "Value", "My Sell Price", "StationID", "Station Name", "Industry", "Current Price", "Notes"])
-    for type_id, info in items.items():
-        type_info = lib.get_type_info(sde_conn, type_id)
-        availability = get_pricing(prices_conn, type_id, date)
-        min_order = guess_min_order(info)
-        current_price = station_prices.get(type_id)
-        notes = []
-        buy_quantity = buy_price = sell_price = station_id = station_name = None
-        industry = False
+def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, station: int, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int], industry_items: Set[int], date: datetime.date):
+    min_order = guess_min_order(item.trade)
+    notes = item.notes
+    industry = item.trade.ID in industry_items
 
-        if availability.fair_price is None:
-            notes.append("no fair price available")
-        elif current_price is not None and current_price < availability.fair_price * 1.22:
-            notes.append("already available at {} (vs {})".format(station_prices[type_id], availability.fair_price))
+    market_quantity = math.floor(item.trade.ValueTraded / item.buy)
+    stock_quantity = math.floor(market_quantity / 25)
+
+    # Reduce potential order by the amount of existing stock below the target sale price.
+    existing_stock = station_stocks.get(station, [0,0])[1]
+    stock_quantity = max(0, stock_quantity-existing_stock)
+    from_station = None
+    station_info = None
+
+    if stock_quantity < min_order/2:
+        notes.append("already in stock below target price, volume={}".format(existing_stock))
+    else:
+        if existing_stock > 0:
+            notes.append("some stock below target price, volume={}".format(existing_stock))
+        stock_quantity = min_order * math.ceil(stock_quantity/min_order)
+
+        # We favour the lowest-price station if it has sufficient stock and is allowed.
+        if lowest_sell[1] in allowed_stations and lowest_sell[0] > min_order and lowest_sell[0] > stock_quantity / 2:
+            from_station=lowest_sell[1]
+            station_info = lib.get_station_info(sde_conn, from_station)
+            stock_quantity = min([lowest_sell[0], stock_quantity])
         else:
-            market_quantity = math.floor(info.ValueTraded / availability.fair_price)
-            stock_quantity = math.floor(market_quantity / 25)
+            # Prefer stations with most stock in the target price range.
+            for station, stock in sorted(station_stocks.items(), key=lambda x: x[1][0], reverse=True):
+                if station not in allowed_stations: continue
+                station_info = lib.get_station_info(sde_conn, station)
+                if stock[0] == 0:
+                    notes.append("not available at station {} (quantity {})".format(station_info.Name, stock_quantity))
+                elif stock[0] < min_order or stock[0] < stock_quantity / 2:
+                    notes.append("not available in quantity at station {} for target price (want {} available {})".format(station_info.Name, stock_quantity, stock[0]))
+                else:
+                   stock_quantity = min([stock[0], stock_quantity])
+                   from_station = station
+                   break
 
-            # Only do not order if the stock quantity is much less than our minimum order size.
-            if 2*stock_quantity < min_order:
-                notes.append("order size {} too small".format(min_order))
-            else:
-                stock_quantity = min_order * math.ceil(stock_quantity/min_order)
-
-                considered = 0
-                sources = [(s, p) for s, p in availability.other_stations.items()
-                    # Must have a sell price and some stock and be an allowed source for shippping.
-                    if p[0] is not None and p[1] is not None and s in allowed_sources]
-                for s, p in sorted(sources, key=lambda i: i[1][0]):
-                    station_info = lib.get_station_info(sde_conn, s)
-                    if station_info is None:
-                        log.info("station {} unknown", s)
-                    considered += 1
-                    if p[1] < math.ceil(stock_quantity/5):
-                        notes.append("not available in quantity at station {} (price {} quantity {} want quantity {})".format(station_info.Name, p[0], p[1], stock_quantity))
-                    elif p[0] > availability.fair_price*0.98:
-                        notes.append("not available at good price at station {} (price {} quantity {} want price {})".format(station_info.Name, p[0], p[1], availability.fair_price))
-                    else:
-                        buy_quantity = min(p[1], stock_quantity)
-                        sell_price = availability.fair_price * 1.18
-                        buy_price = p[0]*1.01 if p[0] < sell_price/1.25 else sell_price/1.25
-                        station_id = s
-                        station_name = station_info.Name
-                        # Found best station to source this item - don't say any others.
-                        break
-
-                if buy_quantity is None and type_id in industry_items:
-                    industry = True
-                    sell_price = availability.fair_price*1.2
-                    buy_price = availability.fair_price
-                    buy_quantity = availability.fair_price*stock_quantity
-                elif considered == 0:
-                    notes.append("wanted to get but no sources considered. other_stations={} vs allowed={}".format(availability.other_stations, allowed_sources))
-
-        w.writerow([type_id, type_info.Name,
-            buy_quantity, buy_price, buy_price*buy_quantity if buy_quantity else None,
-            sell_price, station_id, station_name, "Y" if industry else "N", ",".join(notes)])
+    # "TypeID", "Item Name", "Quantity", "Max Buy", "Value", "My Sell Price", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
+    return (
+            item.trade.ID, item.trade.Name,stock_quantity,item.buy,item.sell * stock_quantity if from_station else 0,item.sell,from_station,station_info.Name if from_station else "-",
+            "Y" if industry else "N", ",".join(notes)
+            )
 
 def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
     res = set()
@@ -139,6 +160,9 @@ def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
                 continue
             res.add(item.ID)
     return res
+
+def item_order_key(s: trade_lib.ItemSummary):
+    return (s.CategoryID, s.GroupID)
 
 def main():
     arg_parser = ArgumentParser(prog='calc-market-quality.py')
@@ -156,16 +180,22 @@ def main():
         items = {s.ID: s for s in trade_lib.get_most_traded_items(tt_fh, args.limit_top_traded_items)}
         log.info("Basket of items loaded, {} items".format(len(items)))
 
+    oinfo = get_orderset_info(args.orderset)
+    log.info("orderset {}: #{}, {}".format(args.orderset, oinfo.Orderset, oinfo.Date))
+    market_model = pick_prices(prices_conn, items, oinfo.Date) 
     industry_items = read_industry_items(sde_conn, args.industry) if args.industry else set()
 
-    oinfo = lib.OrdersetInfo(None, None)
-    prices_at_station = {
-        i: p for i, p in process_orderset(args.orderset, args.station, oinfo)
-    }
+    all_stations = set(args.from_stations)
+    all_stations.add(args.station)
+    item_stocks, lowest_sell = process_orderset(args.orderset, market_model, all_stations)
 
-    log.info("Prices at station {} retrieved: {} items available".format(args.station, len(prices_at_station)))
+    trade_suggestions = [
+        suggest_stock(sde_conn, prices_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), industry_items, oinfo.Date.date()) for i, s in item_stocks.items()]
+
     w = csv.writer(sys.stdout)
-    suggest_stock(sde_conn, prices_conn, items, prices_at_station, set(args.from_stations), industry_items, oinfo.Date.date(), w)
+    w.writerow(["TypeID", "Item Name", "Quantity", "Max Buy", "Value", "My Sell Price", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
+    for s in sorted(trade_suggestions, key=lambda x: item_order_key(market_model[x[0]].trade)):
+        w.writerow(s)
 
 
 if __name__ == "__main__":
