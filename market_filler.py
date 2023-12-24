@@ -1,7 +1,7 @@
 #!/usr/bin/python3
 
 from argparse import ArgumentParser
-from collections import defaultdict
+from collections import defaultdict, namedtuple
 import csv
 from dataclasses import dataclass
 import datetime
@@ -101,7 +101,9 @@ def guess_min_order(i: trade_lib.ItemSummary):
         return 10
     return 1
 
-def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, station: int, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int], industry_items: Set[int], date: datetime.date):
+Result = namedtuple('Result', ['ID', 'Name', 'Quantity', 'MaxBuy', 'Value', 'MySell', 'StationID', 'StationName', 'Industry', 'Notes'])
+
+def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int], industry_items: Set[int]) -> Result:
     min_order = guess_min_order(item.trade)
     notes = item.notes
     industry = item.trade.ID in industry_items
@@ -141,11 +143,11 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
                    from_station = station
                    break
 
-    # "TypeID", "Item Name", "Quantity", "Max Buy", "Value", "My Sell Price", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
-    return (
-            item.trade.ID, item.trade.Name,stock_quantity,item.buy,item.newSell * stock_quantity if from_station else 0,item.newSell,from_station,station_info.Name if from_station else "-",
-            "Y" if industry else "N", ",".join(notes)
-            )
+    return Result(ID=item.trade.ID, Name=item.trade.Name, Quantity=stock_quantity,
+                  MaxBuy=item.buy, Value=item.newSell * stock_quantity if from_station else 0,
+                  MySell=item.newSell,
+                  StationID=from_station, StationName=station_info.Name if from_station else "-",
+                  Industry="Y" if industry else "N", Notes=",".join(notes))
 
 def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
     res = set()
@@ -191,12 +193,12 @@ def main():
     item_stocks, lowest_sell = process_orderset(args.orderset, market_model, all_stations)
 
     trade_suggestions = [
-        suggest_stock(sde_conn, prices_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), industry_items, oinfo.Date.date()) for i, s in item_stocks.items()]
+        suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), industry_items) for i, s in item_stocks.items()]
 
     w = csv.writer(sys.stdout)
     w.writerow(["TypeID", "Item Name", "Quantity", "Max Buy", "Value", "My Sell Price", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
     for s in sorted(trade_suggestions, key=lambda x: item_order_key(market_model[x[0]].trade)):
-        w.writerow(s)
+        w.writerow(list(s))
 
 
 if __name__ == "__main__":
