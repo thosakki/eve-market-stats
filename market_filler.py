@@ -47,24 +47,22 @@ class ItemModel:
     newSell: Optional[float] # the price we would list new sales at
     notes: List[str]
 
-def pick_prices(prices_conn: sqlite3.Connection, items: Dict[int, trade_lib.ItemSummary], date) -> Dict[int, trade_lib.ItemSummary]:
-    model = dict()
-    for type_id, trade_summary in items.items():
-        availability = get_pricing(prices_conn, type_id, date)
-        imodel = ItemModel(trade=trade_summary, notes = [], buy=None, sell=None, newSell=None)
-        model[type_id] = imodel
+def pick_prices(prices_conn: sqlite3.Connection, trade_summary: trade_lib.ItemSummary, date) -> trade_lib.ItemSummary:
+    type_id = trade_summary.ID
+    availability = get_pricing(prices_conn, type_id, date)
+    imodel = ItemModel(trade=trade_summary, notes = [], buy=None, sell=None, newSell=None)
 
-        if availability.fair_price is None:
-            imodel.notes.append("no fair price available")
-            continue
+    if availability.fair_price is None:
+        imodel.notes.append("no fair price available")
+        return None
 
-        # allow buying slightly over the fair price.
-        imodel.buy = availability.fair_price*1.01
-        imodel.newSell = availability.fair_price*1.2
-        # Acceptable sell price is slightly higher, we need some hysteresis so that we don't
-        # keep adjusting orders constantly.
-        imodel.sell = availability.fair_price*1.22
-    return model
+    # allow buying slightly over the fair price.
+    imodel.buy = availability.fair_price*1.01
+    imodel.newSell = availability.fair_price*1.2
+    # Acceptable sell price is slightly higher, we need some hysteresis so that we don't
+    # keep adjusting orders constantly.
+    imodel.sell = availability.fair_price*1.22
+    return imodel
 
 def get_orderset_info(ofile: str) -> lib.OrdersetInfo:
     oinfo = lib.OrdersetInfo(None, None)
@@ -145,7 +143,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection,
 
     # "TypeID", "Item Name", "Quantity", "Max Buy", "Value", "My Sell Price", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
     return (
-            item.trade.ID, item.trade.Name,stock_quantity,item.buy,item.sell * stock_quantity if from_station else 0,item.sell,from_station,station_info.Name if from_station else "-",
+            item.trade.ID, item.trade.Name,stock_quantity,item.buy,item.newSell * stock_quantity if from_station else 0,item.newSell,from_station,station_info.Name if from_station else "-",
             "Y" if industry else "N", ",".join(notes)
             )
 
@@ -182,7 +180,10 @@ def main():
 
     oinfo = get_orderset_info(args.orderset)
     log.info("orderset {}: #{}, {}".format(args.orderset, oinfo.Orderset, oinfo.Date))
-    market_model = pick_prices(prices_conn, items, oinfo.Date) 
+    market_model = {
+            i: pick_prices(prices_conn, item, oinfo.Date) for i, item in items.items()}
+    market_model = {i: m for i, m in market_model.items() if m is not None}
+
     industry_items = read_industry_items(sde_conn, args.industry) if args.industry else set()
 
     all_stations = set(args.from_stations)
