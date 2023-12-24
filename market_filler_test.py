@@ -82,4 +82,40 @@ class TestProcessOrderset(unittest.TestCase):
         self.assertEqual(lowest[im.trade.ID][1], self.JITA)
         self.assertEqual(lowest[im.trade.ID][0], 72.99)
 
+class TestSuggestStock(unittest.TestCase):
+    ALLOW = [60003760, 60008494]
+    DEST = 60005686
+
+    def setUp(self):
+        self.sde_conn = sqlite3.connect(":memory:")
+        c = self.sde_conn.cursor()
+        c.execute("""
+        CREATE TABLE Stations(
+          ID       INT PRIMARY KEY NOT NULL,
+          Name     TEXT NOT NULL,
+          SystemID INT NOT NULL,
+          RegionID INT NOT NULL
+        );""")
+        c.execute("""INSERT INTO Stations VALUES(?,?,?,?);""", [self.ALLOW[0], "Jita 4-4", 123, 100])
+        c.execute("""INSERT INTO Stations VALUES(?,?,?,?);""", [self.ALLOW[1], "Amarr EFA", 134, 101])
+        c.execute("""INSERT INTO Stations VALUES(?,?,?,?);""", [self.DEST, "Hek BC", 145, 102])
+        self.sde_conn.commit()
+
+    @staticmethod
+    def ts(i: int):
+        return trade_lib.ItemSummary(i, "Item{}".format(i), 1, 1, 1, 1, 100)
+
+    def testAlreadyInStock(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [2000, 0],
+            self.ALLOW[1]: [1000, 0],
+            self.DEST: [0, 1000],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.Quantity, 0)
+        self.assertIn("already in stock", r.Notes)
+
+
 unittest.main()
