@@ -64,6 +64,7 @@ class TestPickPrices(unittest.TestCase):
 
 class TestProcessOrderset(unittest.TestCase):
     JITA = 60003760
+    AMARR = 60008494
 
     @staticmethod
     def ts(i: int):
@@ -74,5 +75,11 @@ class TestProcessOrderset(unittest.TestCase):
         stock, _ = m.process_orderset("testdata/orderset4.csv.gz", {im.trade.ID: im}, set([self.JITA]))
         self.assertEqual(stock[im.trade.ID][self.JITA][0], 12066461)
         self.assertEqual(stock[im.trade.ID][self.JITA][1], 21482637)
+
+    def testLowest(self):
+        im = m.ItemModel(self.ts(12608), buy=80, sell=90, newSell=90, notes=[])
+        _, lowest = m.process_orderset("testdata/orderset4.csv.gz", {im.trade.ID: im}, set([self.JITA, self.AMARR]))
+        self.assertEqual(lowest[im.trade.ID][1], self.JITA)
+        self.assertEqual(lowest[im.trade.ID][0], 72.99)
 
 unittest.main()
