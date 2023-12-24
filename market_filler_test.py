@@ -53,5 +53,26 @@ class TestPickPrices(unittest.TestCase):
         self.assertEqual(p.sell, 134.2)
         self.assertEqual(p.newSell, 132)
 
+    def testMovingPrices(self):
+        self.AddPrices(1, self.TODAY, self.JITA, [90, 100, 100, 100], [100, 100, 110, 130], [1000]*4)
+
+        p = m.pick_prices(self.conn, self.ts(1), self.TODAY)
+        self.assertEqual(p.trade.ID, 1)
+        self.assertEqual(p.buy, 111.1)
+        self.assertEqual(p.sell, 134.2)
+        self.assertEqual(p.newSell, 132)
+
+class TestProcessOrderset(unittest.TestCase):
+    JITA = 60003760
+
+    @staticmethod
+    def ts(i: int):
+        return trade_lib.ItemSummary(i, "", 1, 1, 1, 1, 1)
+
+    def testStocks(self):
+        im = m.ItemModel(self.ts(12608), buy=80, sell=90, newSell=90, notes=[])
+        stock, _ = m.process_orderset("testdata/orderset4.csv.gz", {im.trade.ID: im}, set([self.JITA]))
+        self.assertEqual(stock[im.trade.ID][self.JITA][0], 12066461)
+        self.assertEqual(stock[im.trade.ID][self.JITA][1], 21482637)
 
 unittest.main()

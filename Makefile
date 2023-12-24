@@ -2,7 +2,7 @@ ALL	:	top-traded.csv market-quality.csv market-history market-filler.csv
 
 sde/fsd/typeIDs.yaml	:
 	curl -O https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip
-	unzip $<
+	unzip sde.zip
 
 sde.db	:	sde/fsd/typeIDs.yaml
 	rm -f sde.db && ./build_sde.py --initial
