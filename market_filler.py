@@ -165,6 +165,14 @@ def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
             res.add(item.ID)
     return res
 
+def read_assets(filename: str) -> Dict[int, int]:
+    res = defaultdict(int)
+    with open(filename, "rt") as f:
+        reader = csv.DictReader(f)
+        for r in reader:
+            res[int(r['TypeID'])] += int(r['Quantity'])
+    return dict(res)
+
 def item_order_key(s: trade_lib.ItemSummary):
     return (s.CategoryID, s.GroupID)
 
@@ -175,6 +183,7 @@ def main():
     arg_parser.add_argument('--limit-top-traded-items', type=int)
     arg_parser.add_argument('--from-stations', nargs='*', type=int)
     arg_parser.add_argument('--station', type=int)
+    arg_parser.add_argument('--assets', type=str)
     args = arg_parser.parse_args()
 
     sde_conn = sqlite3.connect("sde.db")
@@ -191,13 +200,14 @@ def main():
     market_model = {i: m for i, m in market_model.items() if m is not None}
 
     industry_items = read_industry_items(sde_conn, args.industry) if args.industry else set()
+    assets = read_assets(args.assets) if args.assets else {}
 
     all_stations = set(args.from_stations)
     all_stations.add(args.station)
     item_stocks, lowest_sell = process_orderset(args.orderset, market_model, all_stations)
 
     trade_suggestions = [
-        suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), 0, industry_items) for i, s in item_stocks.items()]
+        suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), industry_items) for i, s in item_stocks.items()]
 
     w = csv.writer(sys.stdout)
     w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "Value", "My Sell Price", "Sell Quantity", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
