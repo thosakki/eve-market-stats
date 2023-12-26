@@ -170,6 +170,7 @@ def read_assets(filename: str) -> Dict[int, int]:
     with open(filename, "rt") as f:
         reader = csv.DictReader(f)
         for r in reader:
+            if r['Singleton'] == 'True': continue
             res[int(r['TypeID'])] += int(r['Quantity'])
     return dict(res)
 

@@ -52,9 +52,9 @@ def main():
 
   w = csv.writer(sys.stdout)
   # {'is_singleton': False, 'item_id': 1043802222344, 'location_flag': 'Hangar', 'location_id': 60005686, 'location_type': 'station', 'quantity': 2, 'type_id': 37457}
-  w.writerow(['TypeID', 'Quantity', 'LocationFlag', 'LocationType', 'LocationID'])
+  w.writerow(['TypeID', 'Singleton', 'Quantity', 'LocationFlag', 'LocationType', 'LocationID'])
   for r in get_assets(config, token):
-      w.writerow([r['type_id'], r['quantity'], r['location_flag'], r['location_type'], r['location_id']])
+      w.writerow([r['type_id'], 'True' if r['is_singleton'] else 'False',  r['quantity'], r['location_flag'], r['location_type'], r['location_id']])
 
 
 if __name__ == "__main__":
