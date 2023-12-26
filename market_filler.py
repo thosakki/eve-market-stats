@@ -101,51 +101,55 @@ def guess_min_order(i: trade_lib.ItemSummary):
         return 10
     return 1
 
-Result = namedtuple('Result', ['ID', 'Name', 'Quantity', 'MaxBuy', 'Value', 'MySell', 'StationID', 'StationName', 'Industry', 'Notes'])
+Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'Value', 'SellQuantity', 'MySell', 'StationID', 'StationName', 'Industry', 'Notes'])
 
-def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int], industry_items: Set[int]) -> Result:
+def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int], current_assets: int, industry_items: Set[int]) -> Result:
     min_order = guess_min_order(item.trade)
     notes = item.notes
     industry = item.trade.ID in industry_items
 
     market_quantity = math.floor(item.trade.ValueTraded / item.buy)
-    stock_quantity = math.floor(market_quantity / 25)
+    original_stock_quantity = stock_quantity = math.floor(market_quantity / 25)
 
     # Reduce potential order by the amount of existing stock below the target sale price.
     existing_stock = station_stocks.get(station, [0,0])[1]
-    stock_quantity = max(0, stock_quantity-existing_stock)
+    stock_quantity = max(0, stock_quantity - existing_stock)
+    if existing_stock > 0:
+        if stock_quantity == 0:
+            notes.append("already in stock below target price, volume={}".format(existing_stock))
+        else:
+            notes.append("some stock below target price, volume={}".format(existing_stock))
+
+    buy_quantity = max(0, stock_quantity - current_assets)
+    if current_assets > 0:
+        notes.append("already own some, volume={}".format(current_assets))
+
     from_station = None
     station_info = None
 
-    if stock_quantity < min_order/2:
-        notes.append("already in stock below target price, volume={}".format(existing_stock))
+    if buy_quantity < min_order/2:
+        if existing_stock == 0 and current_assets == 0:
+            notes.append("target stock quantity too low, original_stock_quantity={}, buy_quantity={}, min_order={}".format(original_stock_quantity, buy_quantity, min_order))
+        pass
     else:
-        if existing_stock > 0:
-            notes.append("some stock below target price, volume={}".format(existing_stock))
-        stock_quantity = min_order * math.ceil(stock_quantity/min_order)
+        buy_quantity = min_order * math.ceil(buy_quantity/min_order)
 
-        # We favour the lowest-price station if it has sufficient stock and is allowed.
-        if lowest_sell[1] in allowed_stations and lowest_sell[0] > min_order and lowest_sell[0] > stock_quantity / 2:
-            from_station=lowest_sell[1]
-            station_info = lib.get_station_info(sde_conn, from_station)
-            stock_quantity = min([lowest_sell[0], stock_quantity])
-        else:
-            # Prefer stations with most stock in the target price range.
-            for station, stock in sorted(station_stocks.items(), key=lambda x: x[1][0], reverse=True):
-                if station not in allowed_stations: continue
-                station_info = lib.get_station_info(sde_conn, station)
-                if stock[0] == 0:
-                    notes.append("not available at station {} (quantity {})".format(station_info.Name, stock_quantity))
-                elif stock[0] < min_order or stock[0] < stock_quantity / 2:
-                    notes.append("not available in quantity at station {} for target price (want {} available {})".format(station_info.Name, stock_quantity, stock[0]))
-                else:
-                   stock_quantity = min([stock[0], stock_quantity])
-                   from_station = station
-                   break
+        # Prefer station with lowest price, then stations with most stock in the target price range.
+        for station, stock in sorted(station_stocks.items(), key=lambda x: (x[0] == lowest_sell[1],x[1][0]), reverse=True):
+            if station not in allowed_stations: continue
+            station_info = lib.get_station_info(sde_conn, station)
+            if stock[0] == 0:
+                notes.append("not available at station {} (quantity {})".format(station_info.Name, buy_quantity))
+            elif stock[0] < min_order or stock[0] < buy_quantity / 2:
+                notes.append("not available in quantity at station {} for target price (want {} available {})".format(station_info.Name, buy_quantity, stock[0]))
+            else:
+               buy_quantity = min([stock[0], buy_quantity])
+               from_station = station
+               break
 
-    return Result(ID=item.trade.ID, Name=item.trade.Name, Quantity=stock_quantity,
-                  MaxBuy=item.buy, Value=item.newSell * stock_quantity if from_station else 0,
-                  MySell=item.newSell,
+    return Result(ID=item.trade.ID, Name=item.trade.Name, BuyQuantity=buy_quantity,
+                  MaxBuy=item.buy, Value=item.newSell * buy_quantity if from_station else 0,
+                  SellQuantity=stock_quantity, MySell=item.newSell,
                   StationID=from_station, StationName=station_info.Name if from_station else "-",
                   Industry="Y" if industry else "N", Notes=",".join(notes))
 
@@ -193,10 +197,10 @@ def main():
     item_stocks, lowest_sell = process_orderset(args.orderset, market_model, all_stations)
 
     trade_suggestions = [
-        suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), industry_items) for i, s in item_stocks.items()]
+        suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), 0, industry_items) for i, s in item_stocks.items()]
 
     w = csv.writer(sys.stdout)
-    w.writerow(["TypeID", "Item Name", "Quantity", "Max Buy", "Value", "My Sell Price", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
+    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "Value", "My Sell Price", "Sell Quantity", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
     for s in sorted(trade_suggestions, key=lambda x: item_order_key(market_model[x[0]].trade)):
         w.writerow(list(s))
 
