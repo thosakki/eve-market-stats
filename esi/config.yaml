@@ -1,0 +1,8 @@
+client_id: 
+client_secret: 
+auth_url: "https://login.eveonline.com/v2/oauth/authorize/"
+token_url: "https://login.eveonline.com/v2/oauth/token"
+character_id: 
+redirect_uri: "eveauth-app://callback/"
+scopes:
+  - "esi-assets.read_assets.v1"
