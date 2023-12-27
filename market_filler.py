@@ -14,7 +14,6 @@ from typing import Dict, Iterator, List, Optional, Set, Tuple
 import lib
 import trade_lib
 
-logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
 log = logging.getLogger(__name__)
 
 @dataclass
@@ -178,6 +177,7 @@ def item_order_key(s: trade_lib.ItemSummary):
     return (s.CategoryID, s.GroupID)
 
 def main():
+    logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
     arg_parser = ArgumentParser(prog='calc-market-quality.py')
     arg_parser.add_argument('--orderset', type=str)
     arg_parser.add_argument('--industry', type=str)

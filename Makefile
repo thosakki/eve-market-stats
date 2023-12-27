@@ -44,5 +44,6 @@ market-filler.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv indust
 tests	:
 	python3 calc_market_quality_test.py
 	python3 lib_test.py
+	python3 market_filler_test.py
 
 .DELETE_ON_ERROR	:	top-traded.tsv market-history market-quality.csv

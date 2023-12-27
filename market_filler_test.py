@@ -3,6 +3,7 @@
 import csv
 import datetime
 import io
+import logging
 import sqlite3
 from typing import List
 import unittest
@@ -142,6 +143,53 @@ class TestSuggestStock(unittest.TestCase):
         self.assertEqual(r.StationName, '-')
         self.assertIn("not available", r.Notes)
 
+    def testOneStation(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [1000, 0],
+            self.DEST: [0, 0],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.BuyQuantity, 5)
+        self.assertEqual(r.StationID, self.ALLOW[0])
+        self.assertEqual(r.StationName, 'Jita 4-4')
+
+    def testBuyReducedByExistingStock(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [1000, 0],
+            self.DEST: [0, 0],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 2, set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.BuyQuantity, 3)
+        self.assertEqual(r.SellQuantity, 5)
+        self.assertEqual(r.StationID, self.ALLOW[0])
+
+    def testBuyFromLowestPriceStation(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [10000, 0],
+            self.ALLOW[1]: [1000, 0],
+            self.DEST: [0, 0],
+            }, (78.4, self.ALLOW[1]), set(self.ALLOW), 0, set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.SellQuantity, 5)
+        self.assertEqual(r.StationID, self.ALLOW[1])
+
+    def testDontBuyFromLowestPriceStationIfNoStock(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [0, 10000],
+            self.ALLOW[1]: [0, 1000],
+            self.DEST: [0, 0],
+            }, (100, self.ALLOW[1]), set(self.ALLOW), 0, set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.SellQuantity, 5)
+        self.assertEqual(r.StationID, None)
 
 
 unittest.main()
