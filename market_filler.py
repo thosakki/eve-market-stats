@@ -91,6 +91,8 @@ def process_orderset(ofile: str, market_model: Dict[int, ItemModel], stations: S
             dict(lowest_sell))
 
 def guess_min_order(i: trade_lib.ItemSummary):
+    if i.CategoryID == 7:  # Modules
+        return min(20, math.ceil(10000000 / i.Sell))
     if i.CategoryID == 8:  # Charges
         if i.GroupID in (86, 374, 375):  # Crystals
             return 20
@@ -164,13 +166,15 @@ def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
             res.add(item.ID)
     return res
 
-def read_assets(filename: str) -> Dict[int, int]:
+def read_assets(files: str) -> Dict[int, int]:
     res = defaultdict(int)
-    with open(filename, "rt") as f:
-        reader = csv.DictReader(f)
-        for r in reader:
-            if r['Singleton'] == 'True': continue
-            res[int(r['TypeID'])] += int(r['Quantity'])
+    for filename in files:
+        log.info("Reading asset file {}".format(filename))
+        with open(filename, "rt") as f:
+            reader = csv.DictReader(f)
+            for r in reader:
+                if r['Singleton'] == 'True': continue
+                res[int(r['TypeID'])] += int(r['Quantity'])
     return dict(res)
 
 def item_order_key(s: trade_lib.ItemSummary):
@@ -184,7 +188,7 @@ def main():
     arg_parser.add_argument('--limit-top-traded-items', type=int)
     arg_parser.add_argument('--from-stations', nargs='*', type=int)
     arg_parser.add_argument('--station', type=int)
-    arg_parser.add_argument('--assets', type=str)
+    arg_parser.add_argument('--assets', nargs='*', type=str)
     args = arg_parser.parse_args()
 
     sde_conn = sqlite3.connect("sde.db")
@@ -211,7 +215,7 @@ def main():
         suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), industry_items) for i, s in item_stocks.items()]
 
     w = csv.writer(sys.stdout)
-    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "Value", "My Sell Price", "Sell Quantity", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
+    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "Value", "Sell Quantity", "My Sell Price", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
     for s in sorted(trade_suggestions, key=lambda x: item_order_key(market_model[x[0]].trade)):
         w.writerow(list(s))
 
