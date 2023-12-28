@@ -148,9 +148,11 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
                from_station = station
                break
 
+    sell_quantity = max(buy_quantity, min_order * math.floor((buy_quantity+current_assets)/min_order))
+
     return Result(ID=item.trade.ID, Name=item.trade.Name, BuyQuantity=buy_quantity,
                   MaxBuy=item.buy, Value=item.newSell * buy_quantity if from_station else 0,
-                  SellQuantity=stock_quantity, MySell=item.newSell,
+                  SellQuantity=sell_quantity, MySell=item.newSell,
                   StationID=from_station, StationName=station_info.Name if from_station else "-",
                   Industry="Y" if industry else "N", Notes=",".join(notes))
 
