@@ -188,7 +188,8 @@ class TestSuggestStock(unittest.TestCase):
             }, (100, self.ALLOW[1]), set(self.ALLOW), 0, set())
         self.assertEqual(r.ID, 1)
         self.assertEqual(r.Name, "Item1")
-        self.assertEqual(r.SellQuantity, 5)
+        self.assertEqual(r.SellQuantity, 0)
+        self.assertEqual(r.BuyQuantity, 0)
         self.assertEqual(r.StationID, None)
 
     def testDontBuyIfTooFewNeeded(self):
@@ -199,7 +200,7 @@ class TestSuggestStock(unittest.TestCase):
             self.DEST: [0, 0],
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, set())
         self.assertEqual(r.ID, 2)
-        self.assertEqual(r.BuyQuantity, 5)
+        self.assertEqual(r.BuyQuantity, 0)
         self.assertEqual(r.StationID, None)
         self.assertEqual(r.StationName, '-')
         self.assertIn("target stock quantity too low", r.Notes)

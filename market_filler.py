@@ -131,7 +131,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
     if buy_quantity < min_order/2:
         if existing_stock == 0 and current_assets == 0:
             notes.append("target stock quantity too low, original_stock_quantity={}, buy_quantity={}, min_order={}".format(original_stock_quantity, buy_quantity, min_order))
-        pass
+        stock_quantity = buy_quantity = 0
     else:
         buy_quantity = min_order * math.ceil(buy_quantity/min_order)
 
@@ -148,10 +148,16 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
                from_station = station
                break
 
-    sell_quantity = max(buy_quantity, min_order * math.floor((buy_quantity+current_assets)/min_order))
+        if from_station is None:
+            buy_quantity = 0
+
+    min_stock = min(max(1, original_stock_quantity), max(2, math.ceil(stock_quantity / 2)))
+    sell_quantity = buy_quantity+current_assets
+    if buy_quantity == 0 and sell_quantity < min_stock:
+        sell_quantity = 0
 
     return Result(ID=item.trade.ID, Name=item.trade.Name, BuyQuantity=buy_quantity,
-                  MaxBuy=item.buy, Value=item.newSell * buy_quantity if from_station else 0,
+                  MaxBuy=item.buy, Value=item.newSell * buy_quantity,
                   SellQuantity=sell_quantity, MySell=item.newSell,
                   StationID=from_station, StationName=station_info.Name if from_station else "-",
                   Industry="Y" if industry else "N", Notes=",".join(notes))
