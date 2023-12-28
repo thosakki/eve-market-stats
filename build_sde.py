@@ -27,7 +27,7 @@ def build_categories(cur):
         CREATE UNIQUE INDEX Categories_ByName ON Categories(Name);
         """)
 
-    with open("sde/fsd/groupIDs.yaml", "rt") as fh:
+    with open("sde/fsd/categoryIDs.yaml", "rt") as fh:
         loader = yaml.SafeLoader(fh)
 
         # check proper stream start (should never fail)

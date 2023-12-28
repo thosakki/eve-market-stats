@@ -177,8 +177,9 @@ def read_assets(files: str) -> Dict[int, int]:
                 res[int(r['TypeID'])] += int(r['Quantity'])
     return dict(res)
 
-def item_order_key(s: trade_lib.ItemSummary):
-    return (s.CategoryID, s.GroupID)
+def item_order_key(conn: sqlite3.Connection, s: trade_lib.ItemSummary):
+    info = lib.get_type_info(conn.cursor(), s.ID)
+    return (info.CategoryName, info.GroupName, s.Name)
 
 def main():
     logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
@@ -216,7 +217,7 @@ def main():
 
     w = csv.writer(sys.stdout)
     w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "Value", "Sell Quantity", "My Sell Price", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
-    for s in sorted(trade_suggestions, key=lambda x: item_order_key(market_model[x[0]].trade)):
+    for s in sorted(trade_suggestions, key=lambda x: item_order_key(sde_conn, market_model[x[0]].trade)):
         w.writerow(list(s))
 
 
