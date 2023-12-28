@@ -151,7 +151,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
         if from_station is None:
             buy_quantity = 0
 
-    min_stock = min(max(1, original_stock_quantity), max(2, math.ceil(stock_quantity / 2)))
+    min_stock = min(max(1, original_stock_quantity), max(2, math.ceil(original_stock_quantity / 2)))
     sell_quantity = buy_quantity+current_assets
     if buy_quantity == 0 and sell_quantity < min_stock:
         sell_quantity = 0
