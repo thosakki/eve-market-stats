@@ -1,5 +1,8 @@
 ALL	:	top-traded.csv market-quality.csv market-history market-filler.csv
 
+reset	:
+	rm -f $(assets) latest-orderset
+
 sde/fsd/typeIDs.yaml	:
 	curl -O https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip
 	unzip sde.zip
