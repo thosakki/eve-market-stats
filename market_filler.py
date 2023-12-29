@@ -110,11 +110,14 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
     industry = item.trade.ID in industry_items
 
     market_quantity = math.floor(item.trade.ValueTraded / item.buy)
+    # original_stock_quantity how much supply of this item we want to be available on the market.
     original_stock_quantity = stock_quantity = min_order * math.floor(
             0.5 + math.floor(market_quantity / 25)/min_order)
 
     # Reduce potential order by the amount of existing stock below the target sale price.
     existing_stock = station_stocks.get(station, [0,0])[1]
+    # stock_quantity is how much *we* want to supply to the market (not including any stock that
+    # we already listed) - before considering availability.
     stock_quantity = max(0, stock_quantity - existing_stock)
     if existing_stock > 0:
         if stock_quantity == 0:
@@ -122,6 +125,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
         else:
             notes.append("some stock below target price, volume={}".format(existing_stock))
 
+    # buy_quantity is how much we therefore want to buy.
     buy_quantity = max(0, stock_quantity - current_assets)
     if current_assets > 0:
         notes.append("already own some, volume={}".format(current_assets))
@@ -132,7 +136,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
     if buy_quantity < min_order/2:
         if existing_stock == 0 and current_assets == 0:
             notes.append("target stock quantity too low, original_stock_quantity={}, buy_quantity={}, min_order={}".format(original_stock_quantity, buy_quantity, min_order))
-        stock_quantity = buy_quantity = 0
+        buy_quantity = 0
     else:
         buy_quantity = min_order * math.ceil(buy_quantity/min_order)
 
@@ -153,7 +157,9 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
             buy_quantity = 0
 
     min_stock = min(max(1, original_stock_quantity), max(2, math.ceil(original_stock_quantity / 2)))
-    sell_quantity = buy_quantity+current_assets
+    # sell_quantity is how much we expect to sell after buying. Note the min here - we are limited
+    # both by what we have & can buy, and by how much we wanted to supply.
+    sell_quantity = min(buy_quantity+current_assets, stock_quantity)
     if buy_quantity == 0 and sell_quantity < min_stock:
         sell_quantity = 0
 

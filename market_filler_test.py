@@ -109,8 +109,8 @@ class TestSuggestStock(unittest.TestCase):
     def testAlreadyInStock(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
         r = m.suggest_stock(self.sde_conn, self.DEST, im, {
-            self.ALLOW[0]: [2000, 0],
-            self.ALLOW[1]: [1000, 0],
+            self.ALLOW[0]: [2000, 2000],
+            self.ALLOW[1]: [1000, 1000],
             self.DEST: [0, 1000],
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, set())
         self.assertEqual(r.ID, 1)
@@ -121,8 +121,8 @@ class TestSuggestStock(unittest.TestCase):
     def testAlreadyInAssets(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
         r = m.suggest_stock(self.sde_conn, self.DEST, im, {
-            self.ALLOW[0]: [2000, 0],
-            self.ALLOW[1]: [1000, 0],
+            self.ALLOW[0]: [2000, 2000],
+            self.ALLOW[1]: [1000, 1000],
             self.DEST: [0, 0],
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 1000, set())
         self.assertEqual(r.ID, 1)
@@ -146,7 +146,7 @@ class TestSuggestStock(unittest.TestCase):
     def testOneStation(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
         r = m.suggest_stock(self.sde_conn, self.DEST, im, {
-            self.ALLOW[0]: [1000, 0],
+            self.ALLOW[0]: [1000, 1000],
             self.DEST: [0, 0],
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, set())
         self.assertEqual(r.ID, 1)
@@ -158,7 +158,7 @@ class TestSuggestStock(unittest.TestCase):
     def testBuyReducedByExistingStock(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
         r = m.suggest_stock(self.sde_conn, self.DEST, im, {
-            self.ALLOW[0]: [1000, 0],
+            self.ALLOW[0]: [1000, 1000],
             self.DEST: [0, 0],
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 2, set())
         self.assertEqual(r.ID, 1)
@@ -170,8 +170,8 @@ class TestSuggestStock(unittest.TestCase):
     def testBuyFromLowestPriceStation(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
         r = m.suggest_stock(self.sde_conn, self.DEST, im, {
-            self.ALLOW[0]: [10000, 0],
-            self.ALLOW[1]: [1000, 0],
+            self.ALLOW[0]: [10000, 10000],
+            self.ALLOW[1]: [1000, 1000],
             self.DEST: [0, 0],
             }, (78.4, self.ALLOW[1]), set(self.ALLOW), 0, set())
         self.assertEqual(r.ID, 1)
@@ -195,7 +195,7 @@ class TestSuggestStock(unittest.TestCase):
     def testDontBuyIfTooFewNeeded(self):
         im = m.ItemModel(trade_lib.ItemSummary(2, "Charge S", 1, 8, 10000, 1, 100), buy=80, sell=90, newSell=90, notes=[])
         r = m.suggest_stock(self.sde_conn, self.DEST, im, {
-            self.ALLOW[0]: [10000, 0],
+            self.ALLOW[0]: [10000, 10000],
             self.ALLOW[1]: [0, 1000],
             self.DEST: [0, 0],
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, set())
@@ -204,6 +204,21 @@ class TestSuggestStock(unittest.TestCase):
         self.assertEqual(r.StationID, None)
         self.assertEqual(r.StationName, '-')
         self.assertIn("target stock quantity too low", r.Notes)
+
+    def testDontSellIfSufficientSupply(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [10000, 10000],
+            self.ALLOW[1]: [0, 1000],
+            self.DEST: [100, 100],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 10, set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.BuyQuantity, 0)
+        self.assertEqual(r.SellQuantity, 0)
+        self.assertEqual(r.StockQuantity, 5)
+        self.assertEqual(r.StationID, None)
+        self.assertEqual(r.StationName, '-')
+        self.assertIn("already in stock", r.Notes)
 
 
 unittest.main()
