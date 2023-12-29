@@ -1,7 +1,7 @@
 ALL	:	top-traded.csv market-quality.csv market-history market-filler.csv
 
 reset	:
-	rm -f $(assets) latest-orderset
+	rm -f $(assets) $(orders) latest-orderset
 
 sde/fsd/typeIDs.yaml	:
 	curl -O https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip
@@ -43,8 +43,13 @@ assets-%.csv	:	esi/state-%.yaml
 
 assets = $(patsubst esi/state-%.yaml,assets-%.csv,$(wildcard esi/state-*.yaml))
 
-market-filler.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv industry-items.txt market-history $(assets)
-	python3 market_filler.py --orderset latest-orderset-by-station-type.csv.gz --from-stations 60003760 60011866 1025824394754 60003166 --limit-top-traded-items 1000 --station 60005686 --industry industry-items.txt --assets $(assets) > $@
+orders-%.csv	:	esi/state-%.yaml
+	(cd esi && ./get-orders.py --character $(patsubst esi/state-%.yaml,%,$^)) > $@
+
+orders = $(patsubst esi/state-%.yaml,orders-%.csv,$(wildcard esi/state-*.yaml))
+
+market-filler.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv industry-items.txt market-history $(assets) $(orders)
+	python3 market_filler.py --orderset latest-orderset-by-station-type.csv.gz --from-stations 60003760 60011866 1025824394754 60003166 --limit-top-traded-items 1000 --station 60005686 --industry industry-items.txt --assets $(assets) --orders $(orders) > $@
 
 tests	:
 	python3 calc_market_quality_test.py

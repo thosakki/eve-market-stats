@@ -102,9 +102,12 @@ def guess_min_order(i: trade_lib.ItemSummary):
         return 10
     return 1
 
-Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'Value', 'SellQuantity', 'MySell', 'StockQuantity', 'StationID', 'StationName', 'Industry', 'Notes'])
+Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'Value', 'SellQuantity', 'MySell', 'StockQuantity', 'StationID', 'StationName', 'Industry', 'AdjustOrder', 'Notes'])
 
-def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int], current_assets: int, industry_items: Set[int]) -> Result:
+def bool_to_str(b: bool) -> str:
+    return "Y" if b else "N"
+
+def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int], current_assets: int, current_order: Optional[Tuple[int, float]], industry_items: Set[int]) -> Result:
     min_order = guess_min_order(item.trade)
     notes = item.notes
     industry = item.trade.ID in industry_items
@@ -126,9 +129,16 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
             notes.append("some stock below target price, volume={}".format(existing_stock))
 
     # buy_quantity is how much we therefore want to buy.
+    adjust_order = False
     buy_quantity = max(0, stock_quantity - current_assets)
     if current_assets > 0:
         notes.append("already own some, volume={}".format(current_assets))
+    if current_order is not None:
+        notes.append("already listed for sale, volume={}".format(current_order[0]))
+        buy_quantity = max(0, buy_quantity - current_order[0])
+
+        if item.newSell * 1.1 < current_order[1]:
+            adjust_order=True
 
     from_station = None
     station_info = None
@@ -168,7 +178,8 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
                   SellQuantity=sell_quantity, MySell=item.newSell,
                   StockQuantity=original_stock_quantity,
                   StationID=from_station, StationName=station_info.Name if from_station else "-",
-                  Industry="Y" if industry else "N", Notes=",".join(notes))
+                  Industry=bool_to_str(industry), AdjustOrder=bool_to_str(adjust_order),
+                  Notes=",".join(notes))
 
 def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
     res = set()
@@ -185,12 +196,33 @@ def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
 def read_assets(files: str) -> Dict[int, int]:
     res = defaultdict(int)
     for filename in files:
-        log.info("Reading asset file {}".format(filename))
+        i = 0
         with open(filename, "rt") as f:
             reader = csv.DictReader(f)
             for r in reader:
+                i += 1
                 if r['Singleton'] == 'True': continue
                 res[int(r['TypeID'])] += int(r['Quantity'])
+        log.info("Read asset file {}: {} assets.".format(filename, i))
+    return dict(res)
+
+def read_orders(station: int, files: str) -> Dict[int, int]:
+    res = defaultdict(lambda: [0, None])
+    for filename in files:
+        with open(filename, "rt") as f:
+            i = 0
+            # TypeID,Quantity,Original Quantity,Price,LocationID
+            reader = csv.DictReader(f)
+            for r in reader:
+                i += 1
+                if int(r['LocationID']) != station: continue
+                typeID = int(r['TypeID'])
+                res[typeID][0] += int(r['Quantity'])
+                if res[typeID][1] is not None:
+                    res[typeID][1] = min(res[typeID][1], float(r['Price']))
+                else:
+                    res[typeID][1] = float(r['Price'])
+        log.info("Read order file {}: {} orders.".format(filename, i))
     return dict(res)
 
 def item_order_key(conn: sqlite3.Connection, s: trade_lib.ItemSummary):
@@ -206,6 +238,7 @@ def main():
     arg_parser.add_argument('--from-stations', nargs='*', type=int)
     arg_parser.add_argument('--station', type=int)
     arg_parser.add_argument('--assets', nargs='*', type=str)
+    arg_parser.add_argument('--orders', nargs='*', type=str)
     args = arg_parser.parse_args()
 
     sde_conn = sqlite3.connect("sde.db")
@@ -223,16 +256,17 @@ def main():
 
     industry_items = read_industry_items(sde_conn, args.industry) if args.industry else set()
     assets = read_assets(args.assets) if args.assets else {}
+    orders = read_orders(args.station, args.orders) if args.orders else {}
 
     all_stations = set(args.from_stations)
     all_stations.add(args.station)
     item_stocks, lowest_sell = process_orderset(args.orderset, market_model, all_stations)
 
     trade_suggestions = [
-        suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), industry_items) for i, s in item_stocks.items()]
+        suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), orders.get(i), industry_items) for i, s in item_stocks.items()]
 
     w = csv.writer(sys.stdout)
-    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "Value", "Sell Quantity", "My Sell Price", "Stock Quantity", "StationIDs", "Station Names", "Industry", "Current Price", "Notes"])
+    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "Value", "Sell Quantity", "My Sell Price", "Stock Quantity", "StationIDs", "Station Names", "Industry?", "Adjust Order?", "Notes"])
     for s in sorted(trade_suggestions, key=lambda x: item_order_key(sde_conn, market_model[x[0]].trade)):
         w.writerow(list(s))
 
