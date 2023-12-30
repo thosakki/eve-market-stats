@@ -226,7 +226,22 @@ class TestSuggestStock(unittest.TestCase):
             self.ALLOW[0]: [10000, 10000],
             self.ALLOW[1]: [0, 1000],
             self.DEST: [0, 0],
-            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, [10, 100], set())
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, [5, 100], set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.BuyQuantity, 0)
+        self.assertEqual(r.SellQuantity, 0)
+        self.assertEqual(r.StockQuantity, 5)
+        self.assertEqual(r.StationID, None)
+        self.assertEqual(r.StationName, '-')
+        self.assertIn("already listed for sale", r.Notes)
+
+    def testDontSellIfAlreadyListedInStockOrder(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [10000, 10000],
+            self.ALLOW[1]: [0, 1000],
+            self.DEST: [0, 0],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 5, [5, 100], set())
         self.assertEqual(r.ID, 1)
         self.assertEqual(r.BuyQuantity, 0)
         self.assertEqual(r.SellQuantity, 0)

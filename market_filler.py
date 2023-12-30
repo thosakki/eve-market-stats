@@ -169,7 +169,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
     min_stock = min(max(1, original_stock_quantity), max(2, math.ceil(original_stock_quantity / 2)))
     # sell_quantity is how much we expect to sell after buying. Note the min here - we are limited
     # both by what we have & can buy, and by how much we wanted to supply.
-    sell_quantity = min(buy_quantity+current_assets, stock_quantity)
+    sell_quantity = min(buy_quantity+current_assets, stock_quantity - (current_order[0] if current_order is not None else 0))
     if buy_quantity == 0 and sell_quantity < min_stock:
         sell_quantity = 0
 
