@@ -78,7 +78,10 @@ def read_filter_file(fh: IO) -> Set[int]:
     x = set()
     r = csv.DictReader(fh)
     for row in r:
-        x.add(int(row["ID"]))
+        if "ID" in row:
+            x.add(int(row["ID"]))
+        if "Input ID" in row:
+            x.add(int(row["ID"]))
     return x
 
 
@@ -86,7 +89,7 @@ def main():
     arg_parser = ArgumentParser(prog='add_orderset_to_market_history')
     arg_parser.add_argument('--initial', action='store_true')
     arg_parser.add_argument('--orderset', type=str)
-    arg_parser.add_argument('--filter_items', type=str)
+    arg_parser.add_argument('--filter_items', nargs='*', type=str)
     arg_parser.add_argument('--extra_stations', nargs='*', type=int)
     args = arg_parser.parse_args()
 
@@ -102,8 +105,8 @@ def main():
     log.info("Orderset identified as {}, {}".format(oinfo.Orderset, oinfo.Date.date().isoformat()))
 
     filter_items = None
-    if args.filter_items:
-        with open(args.filter_items) as fh:
+    for filename in args.filter_items:
+        with open(filename) as fh:
             filter_items = read_filter_file(fh)
         log.info("Filtering based on {}: {} items selected".format(args.filter_items, len(filter_items)))
 

@@ -27,8 +27,8 @@ market-quality.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv calc_
 bq-load	:
 	bq load --source_format=CSV --null_marker - --skip_leading_rows=1 eve_markets.market_quality market-quality.csv market-efficiency-schema.json
 
-market-history	:	latest-orderset-by-station-type.csv.gz top-traded.csv
-	./add_orderset_to_market_history.py --orderset latest-orderset-by-station-type.csv.gz --filter_items top-traded.csv --extra_stations 1042137702248 60015180 60003166 1031058135975 1032792618788 60009928 1025824394754
+market-history	:	latest-orderset-by-station-type.csv.gz top-traded.csv industry-items.csv
+	./add_orderset_to_market_history.py --orderset latest-orderset-by-station-type.csv.gz --filter_items top-traded.csv industry-items.csv --extra_stations 1042137702248 60015180 60003166 1031058135975 1032792618788 60009928 1025824394754
 	touch $@
 
 latest-orderset	:
@@ -50,6 +50,9 @@ orders = $(patsubst esi/state-%.yaml,orders-%.csv,$(wildcard esi/state-*.yaml))
 
 market-filler.csv	:	latest-orderset-by-station-type.csv.gz top-traded.csv industry-items.txt market-history $(assets) $(orders)
 	python3 market_filler.py --orderset latest-orderset-by-station-type.csv.gz --from-stations 60003760 60011866 1025824394754 60003166 --limit-top-traded-items 1000 --station 60005686 --industry industry-items.txt --assets $(assets) --orders $(orders) > $@
+
+industry-items.csv	:	industry.db
+	./list-industry-inputs-outputs.py > $@
 
 tests	:
 	python3 calc_market_quality_test.py
