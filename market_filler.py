@@ -114,11 +114,24 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
 
     market_quantity = math.floor(item.trade.ValueTraded / item.buy)
     # original_stock_quantity how much supply of this item we want to be available on the market.
-    original_stock_quantity = stock_quantity = min_order * math.floor(
+    original_stock_quantity = min_order * math.floor(
             0.5 + math.floor(market_quantity / 25)/min_order)
 
     # Reduce potential order by the amount of existing stock below the target sale price.
     existing_stock = station_stocks.get(station, [0,0])[1]
+    competitor_stock = existing_stock
+    if current_order is not None and current_order[1] <= item.newSell:
+        competitor_stock -= current_order[0]
+    # Intentionally reduce the *total* target stock level (including competitors) by the amount
+    # of any competitor's stocks.
+    # So if a competitor is stocking half of our target level, we halve the target stock here and then
+    # their stock covers that amount (subtracted again below). If they stock 1/4 of the target, we
+    # reduce our purchase by 1/2 in total.
+    # Basically we assume that if a competitor is stocking a substantial amount now, they will stock more
+    # later and we should greatly reduce or even not bother trying to supply it ourselves.
+    original_stock_quantity = max(0, original_stock_quantity-competitor_stock)
+    stock_quantity = original_stock_quantity
+
     # stock_quantity is how much *we* want to supply to the market (not including any stock that
     # we already listed) - before considering availability.
     stock_quantity = max(0, stock_quantity - existing_stock)

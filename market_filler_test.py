@@ -167,6 +167,19 @@ class TestSuggestStock(unittest.TestCase):
         self.assertEqual(r.SellQuantity, 5)
         self.assertEqual(r.StationID, self.ALLOW[0])
 
+    def testBuyReducedByCompetitorStock(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [1000, 1000],
+            self.DEST: [0, 2],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, None, set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.BuyQuantity, 1)
+        self.assertEqual(r.SellQuantity, 1)
+        self.assertEqual(r.StockQuantity, 3)
+        self.assertEqual(r.StationID, self.ALLOW[0])
+
     def testBuyFromLowestPriceStation(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
         r = m.suggest_stock(self.sde_conn, self.DEST, im, {
@@ -205,13 +218,28 @@ class TestSuggestStock(unittest.TestCase):
         self.assertEqual(r.StationName, '-')
         self.assertIn("target stock quantity too low", r.Notes)
 
-    def testDontSellIfSufficientSupply(self):
+    def testDontSellIfSufficientCompetitorSupply(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
         r = m.suggest_stock(self.sde_conn, self.DEST, im, {
             self.ALLOW[0]: [10000, 10000],
             self.ALLOW[1]: [0, 1000],
-            self.DEST: [100, 100],
+            self.DEST: [0, 100],
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, None, set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.BuyQuantity, 0)
+        self.assertEqual(r.SellQuantity, 0)
+        self.assertEqual(r.StockQuantity, 0)
+        self.assertEqual(r.StationID, None)
+        self.assertEqual(r.StationName, '-')
+        self.assertIn("already in stock", r.Notes)
+
+    def testDontSellIfSufficientOwnSupply(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [10000, 10000],
+            self.ALLOW[1]: [0, 1000],
+            self.DEST: [0, 100],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, [100, 89], set())
         self.assertEqual(r.ID, 1)
         self.assertEqual(r.BuyQuantity, 0)
         self.assertEqual(r.SellQuantity, 0)
