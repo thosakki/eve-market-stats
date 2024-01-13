@@ -57,10 +57,10 @@ def pick_prices(prices_conn: sqlite3.Connection, trade_summary: trade_lib.ItemSu
 
     # allow buying slightly over the fair price.
     imodel.buy = availability.fair_price*1.01
-    imodel.newSell = availability.fair_price*1.2
+    imodel.newSell = availability.fair_price*1.24
     # Acceptable sell price is slightly higher, we need some hysteresis so that we don't
     # keep adjusting orders constantly.
-    imodel.sell = availability.fair_price*1.22
+    imodel.sell = availability.fair_price*1.26
     return imodel
 
 def get_orderset_info(ofile: str) -> lib.OrdersetInfo:

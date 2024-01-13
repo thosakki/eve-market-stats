@@ -51,8 +51,8 @@ class TestPickPrices(unittest.TestCase):
         p = m.pick_prices(self.conn, self.ts(1), self.TODAY)
         self.assertEqual(p.trade.ID, 1)
         self.assertEqual(p.buy, 111.1)
-        self.assertEqual(p.sell, 134.2)
-        self.assertEqual(p.newSell, 132)
+        self.assertEqual(p.sell, 138.6)
+        self.assertEqual(p.newSell, 136.4)
 
     def testMovingPrices(self):
         self.AddPrices(1, self.TODAY, self.JITA, [90, 100, 100, 100], [100, 100, 110, 130], [1000]*4)
@@ -60,8 +60,8 @@ class TestPickPrices(unittest.TestCase):
         p = m.pick_prices(self.conn, self.ts(1), self.TODAY)
         self.assertEqual(p.trade.ID, 1)
         self.assertEqual(p.buy, 111.1)
-        self.assertEqual(p.sell, 134.2)
-        self.assertEqual(p.newSell, 132)
+        self.assertEqual(p.sell, 138.6)
+        self.assertEqual(p.newSell, 136.4)
 
 class TestProcessOrderset(unittest.TestCase):
     JITA = 60003760
