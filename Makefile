@@ -10,8 +10,8 @@ sde/fsd/typeIDs.yaml	:
 sde.db	:	sde/fsd/typeIDs.yaml
 	rm -f sde.db && ./build_sde.py --initial
 
-top-traded.csv	:	latest-orderset-by-station-type.csv.gz popular.csv top_market_items.py  sde.db
-	./top_market_items.py --orderset $< --exclude_category 2 4 5 17 25 42 43 65 91 > $@
+top-traded.csv	:	latest-orderset-by-station-type.csv.gz popular*.csv top_market_items.py  sde.db
+	./top_market_items.py --orderset $< --exclude_category 2 4 5 17 25 41 42 43 65 91 --popular popular*.csv > $@
 
 sde-TRANQUILITY.zip	:
 	curl -O https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip

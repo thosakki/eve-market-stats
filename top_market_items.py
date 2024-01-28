@@ -21,6 +21,7 @@ arg_parser.add_argument('--include_group', nargs='*', type=int)
 arg_parser.add_argument('--exclude_group', nargs='*', type=int)
 arg_parser.add_argument('--include_category', nargs='*', type=int)
 arg_parser.add_argument('--exclude_category', nargs='*', type=int)
+arg_parser.add_argument('--popular', nargs='*', type=str)
 args = arg_parser.parse_args()
 
 items = {}
@@ -29,8 +30,10 @@ TypeInfo = lib.TypeInfo
 con = sqlite3.connect("sde.db")
 cur = con.cursor()
 
-log.info('Reading trade volumes...')
-with open('popular.csv') as market_data_csv:
+months = len(args.popular)
+for name in args.popular:
+  log.info('Reading trade volumes {}...'.format(name))
+  with open(name) as market_data_csv:
     reader = csv.DictReader(market_data_csv)
     for r in reader:
         t = r['Commodity']
@@ -46,8 +49,22 @@ with open('popular.csv') as market_data_csv:
 
         value_traded = int(r['Value of trades'].replace('.', ''))
         traded_items = int(r['Traded items'].replace('.', ''))
-        items[ti.ID] = { 'ID': ti.ID, 'Name': ti.Name, 'CategoryID': ti.CategoryID, 'GroupID': ti.GroupID, 'num': traded_items, 'value': value_traded, 'score': value_traded / math.pow(value_traded/traded_items, 0.6)}
-log.info('...read trade volumes')
+        if ti.ID not in items:
+            items[ti.ID] = { 'ID': ti.ID, 'Name': ti.Name, 'CategoryID': ti.CategoryID, 'GroupID': ti.GroupID, 'by_month': []}
+        items[ti.ID]['by_month'].append({'num': traded_items, 'value': value_traded, 'score': value_traded / math.pow(value_traded/traded_items, 0.6)})
+  log.info('...read trade volumes {}'.format(name))
+
+for _, r in items.items():
+    # Unweighted averages.
+    r['num'] = sum(x['num'] for x in r['by_month'])/months
+    r['value'] = sum(x['value'] for x in r['by_month'])/months
+
+    if len(r['by_month']) < months:
+        # Anything seasonal, I don't want.
+        r['score'] = 0
+    else:
+        # Lowest score across all months considered - we're looking for consistently heavily traded items.
+        r['score'] = min(x['value']/math.pow(x['value']/x['num'], 0.6) for x in r['by_month'])
 
 def parse_agg_what(s: str) -> (int, int, bool):
     region,  type_id, is_buy = s.split('|')
@@ -66,7 +83,7 @@ for o, _ in lib.read_orderset(args.orderset):
             items[o.TypeID]['sell'] = o.Price
 log.info('...read buy & sell prices')
 
-log.info('Producing outout...')
+log.info('Producing output...')
 count = 0
 
 w = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
