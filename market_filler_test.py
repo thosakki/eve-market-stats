@@ -128,6 +128,7 @@ class TestSuggestStock(unittest.TestCase):
         self.assertEqual(r.ID, 1)
         self.assertEqual(r.Name, "Item1")
         self.assertEqual(r.BuyQuantity, 0)
+        self.assertEqual(r.SellQuantity, 5)
         self.assertIn("already own some", r.Notes)
 
     def testNoneAvailable(self):
@@ -141,6 +142,21 @@ class TestSuggestStock(unittest.TestCase):
         self.assertEqual(r.Name, "Item1")
         self.assertEqual(r.StationID, None)
         self.assertEqual(r.StationName, '-')
+        self.assertIn("not available", r.Notes)
+
+    def testSomeInAssets(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.suggest_stock(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [0, 10000],
+            self.ALLOW[1]: [0, 1000],
+            self.DEST: [0, 0],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 2, None, set())
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.StationID, None)
+        self.assertEqual(r.StationName, '-')
+        self.assertEqual(r.BuyQuantity, 0)
+        self.assertEqual(r.SellQuantity, 2)
         self.assertIn("not available", r.Notes)
 
     def testOneStation(self):
