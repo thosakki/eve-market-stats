@@ -32,10 +32,10 @@ market-history	:	latest-orderset-by-station-type.csv.gz top-traded.csv industry-
 	touch $@
 
 latest-orderset	:
-	curl https://market.fuzzwork.co.uk/api/orderset | jq '.orderset' > $@
+	curl -f https://market.fuzzwork.co.uk/api/orderset | jq '.orderset' > $@
 
 latest.csv.gz	:	latest-orderset
-	curl -O https://market.fuzzwork.co.uk/orderbooks/orderset-$$(cat $<).csv.gz
+	curl -f -O https://market.fuzzwork.co.uk/orderbooks/orderset-$$(cat $<).csv.gz
 	ln -sf orderset-$$(cat $<).csv.gz $@
 
 assets-%.csv	:	esi/state-%.yaml
