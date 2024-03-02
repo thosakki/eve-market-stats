@@ -36,27 +36,6 @@ if args.initial:
     CREATE UNIQUE INDEX BuildItemInputs_Key ON BuildItemInputs(OutputID, ID);
     """)
 
-def canonical_name(x: str) -> str:
-    parts = x.split(" ")
-    new_parts = []
-    for p in parts:
-        if p.upper() == "II":
-            new_parts.append("II")
-        elif p.lower() == "autocannon":
-            new_parts.append("AutoCannon")
-        elif p.lower() == "em":
-            new_parts.append("EM")
-        elif not p[0].isdigit():
-            new_parts.append(p.title())
-        elif p.endswith("mn"):
-            new_parts.append(p.upper())
-        elif p.endswith("mm"):
-            new_parts.append(p.lower())
-        else:
-            log.warning("no idea how to handle {}".format(p))
-            new_parts.append(p)
-    return " ".join(new_parts)
-
 with open(args.industry) as fh:
     cur = industryDB.cursor()
     reader = csv.DictReader(fh)
@@ -66,7 +45,7 @@ with open(args.industry) as fh:
         if outputInfo is None:
             log.warn("output {} not recognised".format(outputName))
             continue
-        inputName = canonical_name(r["Input"])
+        inputName = r["Input"]
         inputInfo = lib.get_type_info_byname(sde, inputName)
         if inputInfo is None:
             log.warn("input {} not recognised".format(inputName))
