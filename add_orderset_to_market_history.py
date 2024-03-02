@@ -55,7 +55,7 @@ def load(orderset_fname: str, stations: Set[int]) -> Iterator[ItemMarket]:
 
 def emit_item(conn: sqlite3.Connection, date: datetime.date, im: ItemMarket):
     conn.execute("""
-    INSERT INTO PriceHistory VALUES(?,?,?,?,?,?)
+    INSERT OR REPLACE INTO PriceHistory VALUES(?,?,?,?,?,?)
     """, [im.TypeID, date.isoformat(), im.StationID, im.Buy, im.Sell, im.SellVolume])
 
 def init_db(conn: sqlite3.Connection):
