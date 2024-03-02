@@ -114,6 +114,7 @@ class TestSuggestStock(unittest.TestCase):
             self.DEST: [0, 1000],
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, None, set())
         self.assertEqual(r.ID, 1)
+        self.assertEqual(r.MyQuantity, 0)
         self.assertEqual(r.Name, "Item1")
         self.assertEqual(r.BuyQuantity, 0)
         self.assertIn("already in stock", r.Notes)
@@ -127,9 +128,9 @@ class TestSuggestStock(unittest.TestCase):
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 1000, None, set())
         self.assertEqual(r.ID, 1)
         self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.MyQuantity, 1000)
         self.assertEqual(r.BuyQuantity, 0)
         self.assertEqual(r.SellQuantity, 5)
-        self.assertIn("already own some", r.Notes)
 
     def testNoneAvailable(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])

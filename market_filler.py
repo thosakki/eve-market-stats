@@ -102,7 +102,7 @@ def guess_min_order(i: trade_lib.ItemSummary):
         return 10
     return 1
 
-Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'Value', 'SellQuantity', 'MySell', 'StockQuantity', 'StationID', 'StationName', 'Industry', 'AdjustOrder', 'Notes'])
+Result = namedtuple('Result', ['ID', 'Name', 'MyQuantity', 'BuyQuantity', 'MaxBuy', 'SellQuantity', 'MySell', 'StockQuantity', 'StationID', 'StationName', 'Industry', 'AdjustOrder', 'Notes'])
 
 def bool_to_str(b: bool) -> str:
     return "Y" if b else "N"
@@ -144,8 +144,6 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
     # buy_quantity is how much we therefore want to buy.
     adjust_order = False
     buy_quantity = max(0, stock_quantity - current_assets)
-    if current_assets > 0:
-        notes.append("already own some, volume={}".format(current_assets))
     if current_order is not None:
         notes.append("already listed for sale, volume={}".format(current_order[0]))
         buy_quantity = max(0, buy_quantity - current_order[0])
@@ -187,8 +185,9 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
         notes.append("sell quantity {} < min_stock {} and there is existing stock".format(sell_quantity, min_stock))
         sell_quantity = 0
 
-    return Result(ID=item.trade.ID, Name=item.trade.Name, BuyQuantity=buy_quantity,
-                  MaxBuy=item.buy, Value=item.newSell * buy_quantity,
+    return Result(ID=item.trade.ID, Name=item.trade.Name,
+                  MyQuantity=(current_order[0] if current_order else 0)+current_assets,
+                  BuyQuantity=buy_quantity, MaxBuy=item.buy,
                   SellQuantity=sell_quantity, MySell=item.newSell,
                   StockQuantity=original_stock_quantity,
                   StationID=from_station, StationName=station_info.Name if from_station else "-",
@@ -280,7 +279,7 @@ def main():
         suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), orders.get(i), industry_items) for i, s in item_stocks.items()]
 
     w = csv.writer(sys.stdout)
-    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "Value", "Sell Quantity", "My Sell Price", "Stock Quantity", "StationIDs", "Station Names", "Industry?", "Adjust Order?", "Notes"])
+    w.writerow(["TypeID", "Item Name", "My Quantity", "Buy Quantity", "Max Buy", "Sell Quantity", "My Sell Price", "Stock Quantity", "StationIDs", "Station Names", "Industry?", "Adjust Order?", "Notes"])
     for s in sorted(trade_suggestions, key=lambda x: item_order_key(sde_conn, market_model[x[0]].trade)):
         w.writerow(list(s))
 
