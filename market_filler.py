@@ -279,7 +279,7 @@ def main():
         suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), orders.get(i), industry_items) for i, s in item_stocks.items()]
 
     w = csv.writer(sys.stdout)
-    w.writerow(["TypeID", "Item Name", "My Quantity", "Buy Quantity", "Max Buy", "Sell Quantity", "My Sell Price", "Stock Quantity", "StationIDs", "Station Names", "Industry?", "Adjust Order?", "Notes"])
+    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "My Quantity", "Sell Quantity", "My Sell Price", "Stock Quantity", "StationIDs", "Station Names", "Industry?", "Adjust Order?", "Notes"])
     for s in sorted(trade_suggestions, key=lambda x: item_order_key(sde_conn, market_model[x[0]].trade)):
         w.writerow(list(s))
 
