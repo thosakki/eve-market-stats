@@ -53,7 +53,7 @@ def pick_prices(prices_conn: sqlite3.Connection, trade_summary: trade_lib.ItemSu
 
     if availability.fair_price is None:
         imodel.notes.append("no fair price available")
-        return None
+        return imodel
 
     # allow buying slightly over the fair price.
     imodel.buy = availability.fair_price*1.01
@@ -71,7 +71,7 @@ def get_orderset_info(ofile: str) -> lib.OrdersetInfo:
 
 def process_orderset(ofile: str, market_model: Dict[int, ItemModel], stations: Set[int]) -> Tuple[Dict[int, Dict[int, List]], Dict[int, Tuple[float, int]]]:
     # Per item, per station, stocks below buy and sell prices
-    stock_per_station = defaultdict(lambda: defaultdict(lambda: [0,0]))
+    stock_per_station = {i: defaultdict(lambda: [0,0]) for i in market_model.keys()}
     lowest_sell = defaultdict(lambda: (1e99,0))
     log.info("reading orderset file '{}'".format(ofile))
     for x,_ in lib.read_orderset(ofile):
@@ -102,7 +102,7 @@ def guess_min_order(i: trade_lib.ItemSummary):
         return 10
     return 1
 
-Result = namedtuple('Result', ['ID', 'Name', 'MyQuantity', 'BuyQuantity', 'MaxBuy', 'SellQuantity', 'MySell', 'StockQuantity', 'StationID', 'StationName', 'Industry', 'AdjustOrder', 'Notes'])
+Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'MyQuantity', 'SellQuantity', 'MySell', 'StockQuantity', 'StationID', 'StationName', 'Industry', 'AdjustOrder', 'Notes'])
 
 def bool_to_str(b: bool) -> str:
     return "Y" if b else "N"
@@ -186,8 +186,8 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
         sell_quantity = 0
 
     return Result(ID=item.trade.ID, Name=item.trade.Name,
-                  MyQuantity=(current_order[0] if current_order else 0)+current_assets,
                   BuyQuantity=buy_quantity, MaxBuy=item.buy,
+                  MyQuantity=(current_order[0] if current_order else 0)+current_assets,
                   SellQuantity=sell_quantity, MySell=item.newSell,
                   StockQuantity=original_stock_quantity,
                   StationID=from_station, StationName=station_info.Name if from_station else "-",
