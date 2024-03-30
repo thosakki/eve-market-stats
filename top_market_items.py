@@ -50,7 +50,7 @@ for name in args.popular:
         value_traded = int(r['Value of trades'].replace('.', ''))
         traded_items = int(r['Traded items'].replace('.', ''))
         if ti.ID not in items:
-            items[ti.ID] = { 'ID': ti.ID, 'Name': ti.Name, 'CategoryID': ti.CategoryID, 'GroupID': ti.GroupID, 'by_month': []}
+            items[ti.ID] = { 'ID': ti.ID, 'Name': ti.Name, 'CategoryID': ti.CategoryID, 'GroupID': ti.GroupID, 'MarketGroup': ti.MarketGroup, 'by_month': []}
         items[ti.ID]['by_month'].append({'num': traded_items, 'value': value_traded, 'score': value_traded / math.pow(value_traded/traded_items, 0.6)})
   log.info('...read trade volumes {}'.format(name))
 
@@ -87,9 +87,9 @@ log.info('Producing output...')
 count = 0
 
 w = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-w.writerow(['ID', 'Name', 'GroupID', 'CategoryID', 'Value Traded', 'Buy', 'Sell'])
+w.writerow(['ID', 'Name', 'GroupID', 'CategoryID', 'MarketGroup', 'Value Traded', 'Buy', 'Sell'])
 for id, d in sorted(items.items(), key=lambda x: x[1]['score'], reverse=True):
-    w.writerow([d['ID'], d['Name'], d['GroupID'], d['CategoryID'], d['value'], d.get('buy', '-'), d.get('sell', '-')])
+    w.writerow([d['ID'], d['Name'], d['GroupID'], d['CategoryID'], d['MarketGroup'], d['value'], d.get('buy', '-'), d.get('sell', '-')])
     count += 1
     if count > 10000:
         break

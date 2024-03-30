@@ -5,6 +5,7 @@ from collections import defaultdict, namedtuple
 import csv
 from dataclasses import dataclass
 import datetime
+from fnmatch import fnmatch
 import logging
 import math
 import sqlite3
@@ -115,7 +116,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
     market_quantity = math.floor(item.trade.ValueTraded / item.buy)
     # original_stock_quantity how much supply of this item we want to be available on the market.
     original_stock_quantity = min_order * math.floor(
-            0.5 + math.floor(market_quantity / 25)/min_order)
+            0.5 + math.floor(market_quantity / 50)/min_order)
 
     # Reduce potential order by the amount of existing stock below the target sale price.
     existing_stock = station_stocks.get(station, [0,0])[1]
@@ -238,6 +239,15 @@ def read_orders(station: int, files: str) -> Dict[int, int]:
         log.info("Read order file {}: {} orders.".format(filename, i))
     return dict(res)
 
+def read_market_paths(filename: str) -> List[str]:
+    res = []
+    with open(filename, "rt") as f:
+        for l in f:
+            l = l.rstrip()
+            # could do validation here
+            res.append(l)
+    return res
+
 def item_order_key(conn: sqlite3.Connection, s: trade_lib.ItemSummary):
     info = lib.get_type_info(conn.cursor(), s.ID)
     return (info.CategoryName, info.GroupName, s.Name)
@@ -252,13 +262,23 @@ def main():
     arg_parser.add_argument('--station', type=int)
     arg_parser.add_argument('--assets', nargs='*', type=str)
     arg_parser.add_argument('--orders', nargs='*', type=str)
+    arg_parser.add_argument('--exclude_market_paths', type=str)
     args = arg_parser.parse_args()
 
     sde_conn = sqlite3.connect("sde.db")
     prices_conn = sqlite3.connect("market-prices.db")
+    excluded_mpaths = read_market_paths(args.exclude_market_paths) if args.exclude_market_paths is not None else []
 
     with open("top-traded.csv","rt") as tt_fh:
-        items = {s.ID: s for s in trade_lib.get_most_traded_items(tt_fh, args.limit_top_traded_items)}
+        items = {}
+        for s in trade_lib.get_most_traded_items(tt_fh, args.limit_top_traded_items):
+            excluded = False
+            for x in excluded_mpaths:
+                if fnmatch(s.MarketGroup, x):
+                    excluded = True
+                    break
+            if excluded: continue
+            items[s.ID] = s 
         log.info("Basket of items loaded, {} items".format(len(items)))
 
     oinfo = get_orderset_info(args.orderset)
