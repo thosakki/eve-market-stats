@@ -64,6 +64,89 @@ def build_categories(cur):
         assert loader.check_event(yaml.StreamEndEvent)
         cur.commit()
 
+def build_market_groups(cur):
+    if args.initial:
+        cur.execute("""
+        CREATE TABLE MarketGroups(
+          ID      INT PRIMARY KEY NOT NULL,
+          Path    TEXT NOT NULL
+        );""")
+        cur.execute("""
+        CREATE UNIQUE INDEX MarketGroups_ByPath ON MarketGroups(Path);
+        """)
+
+    def get_mgroup(group_id: int):
+        res = cur.execute("""
+        SELECT ID, Path FROM MarketGroups
+        WHERE ID = ?
+        """, [group_id])
+        r = res.fetchall()
+        if len(r) == 0:
+            return None
+        assert len(r) == 1
+        row = r[0]
+        return row[1]
+
+    # The marketGroups file contains forward references - so an entry may refer
+    # to a parent that occurs later in the file. Greedy approach here - we just
+    # repeatedly load the file, skipping entries that are broken references
+    # and keep going until we have a pass with nothing skipped (or fail if we do
+    # a pass with nothing added).
+    skipped = 1
+    added = 1
+    while skipped > 0 and added > 0:
+        added = 0
+        skipped = 0
+        with open("sde/fsd/marketGroups.yaml", "rt") as fh:
+            loader = yaml.SafeLoader(fh)
+
+            # check proper stream start (should never fail)
+            assert loader.check_event(yaml.StreamStartEvent)
+            loader.get_event()
+            assert loader.check_event(yaml.DocumentStartEvent)
+            loader.get_event()
+
+            # assume the root element is a sequence
+            assert loader.check_event(yaml.MappingStartEvent)
+            loader.get_event()
+
+            # now while the next event does not end the sequence, process each item
+            while not loader.check_event(yaml.MappingEndEvent):
+                # compose current item to a node as if it was the root node
+                node = loader.compose_node(None, None)
+                # we set deep=True for complete processing of all the node's children
+                k = loader.construct_object(node, True)
+                # compose current item to a node as if it was the root node
+                node = loader.compose_node(None, None)
+                # we set deep=True for complete processing of all the node's children
+                v = loader.construct_object(node, True)
+
+                mgroup_id = k
+                name = v['nameID']['en']
+                try:
+                    if 'parentGroupID' in v:
+                        parentPath = get_mgroup(v['parentGroupID'])
+                        if parentPath is None:
+                            skipped += 1
+                            continue
+                        path = '{}>{}'.format(parentPath,name)
+                    else:
+                        path = name
+                    cur.execute("""INSERT OR REPLACE INTO MarketGroups VALUES(?,?)""", [mgroup_id, path])
+                    added += 1
+                except sqlite3.IntegrityError:
+                    log.error("failed to insert ({},{})".format(mgroup_id, name, v.get('parentGroupID','-')))
+            # assume document ends and no further documents are in stream
+            loader.get_event()
+            assert loader.check_event(yaml.DocumentEndEvent)
+            loader.get_event()
+            assert loader.check_event(yaml.StreamEndEvent)
+            cur.commit()
+            if added > 0 or skipped == 0:
+                log.info("Added {} entries, skipped {}".format(added, skipped))
+            else:
+                log.error("Added {} entries, skipped {}".format(added, skipped))
+
 # Commodity,Number of trades,Traded items,Value of trades,Lst,,as per ESI; complete New Eden; last update: 24.11.2023
 # PLEX,2.974,1.078.606,4.415.528.028.140,,,
 
@@ -122,8 +205,8 @@ def build_types(cur):
         CREATE TABLE Types(
           ID      INT PRIMARY KEY NOT NULL,
           Name    TEXT NOT NULL,
-          GroupID INT NOT NULL
-          MarketGroupID INT NOT NULL
+          GroupID INT NOT NULL,
+          MarketGroupID INT
         );""")
         cur.execute("""
         CREATE UNIQUE INDEX Types_ByName ON Types(Name);
@@ -157,7 +240,7 @@ def build_types(cur):
             type_id = k
             name = v['name']['en']
             try:
-                cur.execute("""INSERT INTO Types VALUES(?,?,?,?);""", [type_id, name, v['groupID'], v['marketGroupID']])
+                cur.execute("""INSERT INTO Types VALUES(?,?,?,?);""", [type_id, name, v['groupID'], v.get('marketGroupID')])
             except sqlite3.IntegrityError:
                 log.error("failed to insert ({},{},{})".format(type_id, name, v['groupID']))
 
@@ -230,6 +313,7 @@ con = sqlite3.connect("sde.db")
 cur = con.cursor()
 if not args.skip_types:
     build_types(con)
+build_market_groups(con)
 build_groups(con)
 build_categories(con)
 build_stations(con)

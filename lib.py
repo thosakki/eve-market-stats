@@ -8,7 +8,7 @@ from typing import Iterator, Optional, Tuple
 
 Order = namedtuple('Order', ['TypeID', 'StationID', 'IsBuy', 'Price', 'Volume', 'Date'])
 StationInfo = namedtuple('StationInfo', ['ID', 'Name', 'SystemID', 'RegionID'])
-TypeInfo = namedtuple('TypeInfo', ['ID', 'Name', 'GroupID', 'GroupName', 'CategoryID', 'CategoryName'])
+TypeInfo = namedtuple('TypeInfo', ['ID', 'Name', 'GroupID', 'GroupName', 'CategoryID', 'CategoryName', 'MarketGroup'])
 
 @dataclass
 class OrdersetInfo:
@@ -17,9 +17,10 @@ class OrdersetInfo:
 
 def get_type_info(cur: sqlite3.Cursor, type_id: int) -> TypeInfo:
     res = cur.execute("""
-    SELECT Types.ID, Types.name, Groups.ID, Groups.Name, Categories.ID, Categories.Name
+    SELECT Types.ID, Types.name, Groups.ID, Groups.Name, Categories.ID, Categories.Name, MarketGroups.Path
     FROM Types JOIN Groups ON (Types.GroupID = Groups.ID)
         JOIN Categories ON (Categories.ID = Groups.CategoryID)
+    LEFT JOIN MarketGroups ON (MarketGroups.ID = Types.MarketGroupID)
     WHERE Types.ID = ?
     """, [type_id])
     r = res.fetchall()
@@ -28,13 +29,14 @@ def get_type_info(cur: sqlite3.Cursor, type_id: int) -> TypeInfo:
     if len(r) > 1:
         raise RuntimeError("multiple values for a name from SDE")
     row = r[0]
-    return TypeInfo(row[0], row[1], row[2], row[3], row[4], row[5])
+    return TypeInfo(row[0], row[1], row[2], row[3], row[4], row[5], row[6])
 
 def get_type_info_byname(cur: sqlite3.Cursor, name: str) -> TypeInfo:
     res = cur.execute("""
-    SELECT Types.ID, Types.name, Groups.ID, Groups.Name, Categories.ID, Categories.Name
+    SELECT Types.ID, Types.name, Groups.ID, Groups.Name, Categories.ID, Categories.Name, MarketGroups.Path
     FROM Types JOIN Groups ON (Types.GroupID = Groups.ID)
         JOIN Categories ON (Categories.ID = Groups.CategoryID)
+    LEFT JOIN MarketGroups ON (MarketGroups.ID = Types.MarketGroupID)
     WHERE Types.Name = ?
     """, [name])
     r = res.fetchall()
@@ -44,7 +46,7 @@ def get_type_info_byname(cur: sqlite3.Cursor, name: str) -> TypeInfo:
     if len(r) > 1:
         raise RuntimeError("multiple values for a name from SDE")
     row = r[0]
-    return TypeInfo(row[0], row[1], row[2], row[3], row[4], row[5])
+    return TypeInfo(row[0], row[1], row[2], row[3], row[4], row[5], row[6])
 
 def get_station_info(cur: sqlite3.Cursor, stationID: int) -> StationInfo:
     res = cur.execute("""
