@@ -123,6 +123,7 @@ def build_types(cur):
           ID      INT PRIMARY KEY NOT NULL,
           Name    TEXT NOT NULL,
           GroupID INT NOT NULL
+          MarketGroupID INT NOT NULL
         );""")
         cur.execute("""
         CREATE UNIQUE INDEX Types_ByName ON Types(Name);
@@ -156,7 +157,7 @@ def build_types(cur):
             type_id = k
             name = v['name']['en']
             try:
-                cur.execute("""INSERT INTO Types VALUES(?,?,?);""", [type_id, name, v['groupID']])
+                cur.execute("""INSERT INTO Types VALUES(?,?,?,?);""", [type_id, name, v['groupID'], v['marketGroupID']])
             except sqlite3.IntegrityError:
                 log.error("failed to insert ({},{},{})".format(type_id, name, v['groupID']))
 
