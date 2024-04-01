@@ -10,7 +10,7 @@ sde/fsd/typeIDs.yaml	:
 sde.db	:	sde/fsd/typeIDs.yaml
 	rm -f sde.db && ./build_sde.py --initial
 
-top-traded.csv	:	latest-orderset-by-station-type.csv.gz popular*.csv top_market_items.py  sde.db
+top-traded.csv	:	latest-orderset-by-station-type.csv.gz popular*.csv top_market_items.py order-sizes.txt sde.db
 	./top_market_items.py --orderset $< --exclude_category 2 4 5 17 25 41 42 43 65 91 --popular popular*.csv > $@
 
 sde-TRANQUILITY.zip	:
@@ -56,6 +56,12 @@ market-filler-intaki.csv	:	latest.csv.gz top-traded.csv industry-items.txt marke
 
 industry-items.csv	:	industry.db
 	./list-industry-inputs-outputs.py > $@
+
+top-traded-measure.1000	:	top-traded-measure.csv
+	./top-1000.sh < $< > $@
+
+top-traded.1000	:	top-traded.csv
+	./top-1000.sh < $< > $@
 
 tests	:
 	python3 calc_market_quality_test.py

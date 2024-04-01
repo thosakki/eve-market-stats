@@ -1,5 +1,11 @@
+Ammunition & Charges>Projectile Ammo>Advanced Artillery Ammo	500	2000
+Ammunition & Charges>Cap Booster Charges	10	50
+Ammunition & Charges>Command Burst Charge	10	100
+Ammunition & Charges>Condenser Packs	500	2000
 Ammunition & Charges>Frequency Crystals	4	8
+Ammunition & Charges>Mining Crystals	4	8
 Ammunition & Charges>Missiles	500	2000
+Ammunition & Charges>Scripts	1	100
 Ammunition & Charges	1000	4000
 Drones>Fighters	10	10
 Drones	5	10

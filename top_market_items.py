@@ -12,6 +12,7 @@ import sys
 import yaml
 
 import lib
+import trade_lib
 
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
@@ -47,24 +48,29 @@ for name in args.popular:
         if args.include_category is not None and ti.CategoryID not in args.include_category: continue
         if args.exclude_category is not None and ti.CategoryID in args.exclude_category: continue
 
+        if ti.MarketGroup is None:
+            log.debug("non-market item {}".format(t))
+            continue
+
         value_traded = int(r['Value of trades'].replace('.', ''))
         traded_items = int(r['Traded items'].replace('.', ''))
         if ti.ID not in items:
-            items[ti.ID] = { 'ID': ti.ID, 'Name': ti.Name, 'CategoryID': ti.CategoryID, 'GroupID': ti.GroupID, 'MarketGroup': ti.MarketGroup, 'by_month': []}
-        items[ti.ID]['by_month'].append({'num': traded_items, 'value': value_traded, 'score': value_traded / math.pow(value_traded/traded_items, 0.6)})
+            items[ti.ID] = { 'ID': ti.ID, 'Name': ti.Name, 'CategoryID': ti.CategoryID, 'GroupID': ti.GroupID, 'MarketGroup': ti.MarketGroup, 'NormalMarketSize': trade_lib.get_order_size(ti).NormalMarketSize, 'by_month': []}
+        items[ti.ID]['by_month'].append({'num': traded_items, 'value': value_traded})
   log.info('...read trade volumes {}'.format(name))
 
 for _, r in items.items():
-    # Unweighted averages.
-    r['num'] = sum(x['num'] for x in r['by_month'])/months
-    r['value'] = sum(x['value'] for x in r['by_month'])/months
+    r['num'] = min(x['num'] for x in r['by_month'])
+    r['value'] = min(x['value'] for x in r['by_month'])
 
     if len(r['by_month']) < months:
         # Anything seasonal, I don't want.
         r['score'] = 0
     else:
+        value_per_item = r['value']/r['num']
+        value_per_trade = value_per_item * r['NormalMarketSize']
         # Lowest score across all months considered - we're looking for consistently heavily traded items.
-        r['score'] = min(x['value']/math.pow(x['value']/x['num'], 0.6) for x in r['by_month'])
+        r['score'] = min(x['value']/math.pow(value_per_trade, 0.6) for x in r['by_month'])
 
 def parse_agg_what(s: str) -> (int, int, bool):
     region,  type_id, is_buy = s.split('|')
