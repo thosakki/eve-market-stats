@@ -91,25 +91,13 @@ def process_orderset(ofile: str, market_model: Dict[int, ItemModel], stations: S
     return ({i: dict(v) for i,v in stock_per_station.items()},
             dict(lowest_sell))
 
-def guess_min_order(i: trade_lib.ItemSummary):
-    if i.CategoryID == 7:  # Modules
-        return min(20, math.ceil(10000000 / i.Sell))
-    if i.CategoryID == 8:  # Charges
-        if i.GroupID in (86, 374, 375):  # Crystals
-            return 20
-        else:
-            return 2000
-    if i.CategoryID == 87:  # Fighter
-        return 10
-    return 1
-
 Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'MyQuantity', 'SellQuantity', 'MySell', 'StockQuantity', 'StationID', 'StationName', 'Industry', 'AdjustOrder', 'Notes'])
 
 def bool_to_str(b: bool) -> str:
     return "Y" if b else "N"
 
 def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int], current_assets: int, current_order: Optional[Tuple[int, float]], industry_items: Set[int]) -> Result:
-    min_order = guess_min_order(item.trade)
+    min_order = trade_lib.get_order_size(item.trade).MinOrderSize
     notes = item.notes
     industry = item.trade.ID in industry_items
 

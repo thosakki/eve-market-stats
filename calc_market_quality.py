@@ -97,12 +97,13 @@ def main():
     arg_parser.add_argument('--orderset', type=str)
     arg_parser.add_argument('--dump-detail-for', type=int)
     arg_parser.add_argument('--limit-top-traded-items', type=int)
+    arg_parser.add_argument('--top-traded-items', type=str)
     args = arg_parser.parse_args()
 
     conn = sqlite3.connect("sde.db")
     c = conn.cursor()
 
-    with open("top-traded.csv","rt") as tt_fh:
+    with open(args.top_traded_items,"rt") as tt_fh:
         items = {s.ID: s for s in trade_lib.get_most_traded_items(tt_fh, args.limit_top_traded_items)}
         log.info("Basket of items loaded, {} items".format(len(items)))
 

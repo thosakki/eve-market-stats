@@ -1,0 +1,8 @@
+Ammunition & Charges>Frequency Crystals	4	8
+Ammunition & Charges>Missiles	500	2000
+Ammunition & Charges	1000	4000
+Drones>Fighters	10	10
+Drones	5	10
+Ship Equipment>Turrets & Launchers	4	8
+Special Edition Assets>Special Edition Festival Assets	200	500
+	1	1
