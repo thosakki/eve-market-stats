@@ -7,9 +7,9 @@ Ship Equipment>Turrets & Launchers>*>*>Large
 Ship Equipment>Turrets & Launchers>Missile Launchers>Cruise Launchers
 Ship Equipment>Shield>Shield Boosters>Extra Large
 Ship Equipment>Smartbombs>Large
-Ships>Battlecruisers>Advanced Battlecruisers
-Ships>Cruisers>Advanced Cruisers>Heavy Assault Cruisers
-Ships>Cruisers>Advanced Cruisers>Logistics
+Ships>Battlecruisers>Advanced Battlecruisers>*
+Ships>Cruisers>Advanced Cruisers>Heavy Assault Cruisers>*
+Ships>Cruisers>Advanced Cruisers>Logistics>*
 Ships>Destroyers>Advanced Destroyers>Interdictor>*
 Ship Equipment>Hull & Armor>*>Large
 Drones>Fighters>*
@@ -17,4 +17,4 @@ Ships>Battleships>*
 Ship Equipment>Turrets & Launchers>Weapon Upgrades>Siege Modules
 Ship and Module Modifications>Rigs>*>Large*
 Ships>Cruisers>Advanced Cruisers>Strategic Cruisers>*
-Ship and Module Modifications>Subsystems
+Ship and Module Modifications>Subsystems>*
