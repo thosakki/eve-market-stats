@@ -80,12 +80,15 @@ def process_orderset(ofile: str, market_model: Dict[int, ItemModel], stations: S
         if x.TypeID not in market_model: continue
         if x.IsBuy: continue
 
-        if x.Price < market_model[x.TypeID].buy:
-            stock_per_station[x.TypeID][x.StationID][0] += x.Volume
-        if x.Price < market_model[x.TypeID].sell:
-            stock_per_station[x.TypeID][x.StationID][1] += x.Volume
-        if x.Price < lowest_sell[x.TypeID][0]:
-            lowest_sell[x.TypeID] = (x.Price, x.StationID)
+        try:
+            if x.Price < market_model[x.TypeID].buy:
+                stock_per_station[x.TypeID][x.StationID][0] += x.Volume
+            if x.Price < market_model[x.TypeID].sell:
+                stock_per_station[x.TypeID][x.StationID][1] += x.Volume
+            if x.Price < lowest_sell[x.TypeID][0]:
+                lowest_sell[x.TypeID] = (x.Price, x.StationID)
+        except TypeError as e:
+            raise RuntimeError("failed to parse {} (mm {}): {}".format(x, market_model[x.TypeID], e))
 
     # Convert to a regular dict, to avoid exposing implementation.
     return ({i: dict(v) for i,v in stock_per_station.items()},
