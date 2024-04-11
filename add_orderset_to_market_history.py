@@ -104,11 +104,11 @@ def main():
         pass
     log.info("Orderset identified as {}, {}".format(oinfo.Orderset, oinfo.Date.date().isoformat()))
 
-    filter_items = None
+    filter_items = set()
     for filename in args.filter_items:
         with open(filename) as fh:
-            filter_items = read_filter_file(fh)
-        log.info("Filtering based on {}: {} items selected".format(args.filter_items, len(filter_items)))
+            filter_items.update(read_filter_file(fh))
+    log.info("Filtering based on {}: {} items selected".format(args.filter_items, len(filter_items)))
 
     count = 0
     skipped = 0
