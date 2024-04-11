@@ -1,5 +1,7 @@
 #!/bin/sh -e
 
+# Prerequisites:
+# comment out the dependency on latest-orderset for latest.csv.gz in Makefile
 for x in backfill/orderset-*.gz; do
 	n=$(basename "${x}"| sed -e 's/orderset-//' -e 's/.csv.gz//')
 	echo "Processing orderset $n"
@@ -9,6 +11,6 @@ for x in backfill/orderset-*.gz; do
 		rm -f "latest-orderset-by-station-type.csv.gz"
 		nice make market-quality.csv market-history
 		mv -i market-quality.csv "${target}"
-		rm latest.csv.gz
+		rm latest.csv.gz market-history
 	fi
 done

@@ -25,7 +25,7 @@ market-quality.csv	:	latest-orderset-by-station-type.csv.gz top-traded-measure.c
 	./calc_market_quality.py --orderset $< --top-traded-items top-traded-measure.csv --limit-top-traded-items 1000 | awk 'NR == 1; NR > 1 {print $0 | "sort -t , -k 3nr"}' > $@
 
 bq-load	:
-	bq load --source_format=CSV --null_marker - --skip_leading_rows=1 eve_markets.market_quality market-quality.csv market-efficiency-schema.json
+	bq load --source_format=CSV --null_marker - --skip_leading_rows=1 eve_markets.market_efficiency market-efficiency.csv market-efficiency-schema.json
 
 market-history	:	latest-orderset-by-station-type.csv.gz top-traded.csv top-traded-measure.csv industry-items.csv
 	./add_orderset_to_market_history.py --orderset latest-orderset-by-station-type.csv.gz --filter_items top-traded.csv top-traded-measure.csv industry-items.csv --extra_stations 1042137702248 60015180 60003166 1031058135975 1032792618788 60009928 1025824394754
