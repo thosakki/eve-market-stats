@@ -48,11 +48,11 @@ orders-%.csv	:	esi/state-%.yaml
 
 orders = $(patsubst esi/state-%.yaml,orders-%.csv,$(wildcard esi/state-*.yaml))
 
-market-filler.csv	:	latest.csv.gz top-traded.csv industry-items.txt market-history $(assets) $(orders)
-	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 60011866 1025824394754 60003166 --limit-top-traded-items 1000 --station 60005686 --industry industry-items.txt --assets $(assets) --orders $(orders) > $@
+market-filler.csv	:	latest.csv.gz top-traded.csv industry.db market-history $(assets) $(orders)
+	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 60011866 1025824394754 60003166 --limit-top-traded-items 1000 --station 60005686 --assets $(assets) --orders $(orders) > $@
 
-market-filler-intaki.csv	:	latest.csv.gz top-traded.csv industry-items.txt market-history $(assets) $(orders) exclude-market-intaki.txt
-	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 60011866 1025824394754 60003166 60005686 --limit-top-traded-items 800 --station 60015180 --industry industry-items.txt --assets $(assets) --exclude_market_paths exclude-market-intaki.txt --orders $(orders) > $@
+market-filler-intaki.csv	:	latest.csv.gz top-traded.csv industry.db market-history $(assets) $(orders) exclude-market-intaki.txt
+	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 60011866 1025824394754 60003166 60005686 --limit-top-traded-items 800 --station 60015180 --assets $(assets) --exclude_market_paths exclude-market-intaki.txt --orders $(orders) > $@
 
 industry-items.csv	:	industry.db
 	./list-industry-inputs-outputs.py > $@

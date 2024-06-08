@@ -195,16 +195,25 @@ def suggest_buys(sde_conn: sqlite3.Connection, r: Result, item: ItemModel, stati
             FromStationName=station_info.Name if from_station else "-"
             )
 
-def read_industry_items(conn: sqlite3.Connection, filename: str) -> Dict[int, float]:
+def read_industry_items(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, industry_conn: sqlite3.Connection, date) -> Dict[int, float]:
     res = dict()
-    with open(filename, "rt") as f:
-        for i in f:
-            name = i.rstrip()
-            item = lib.get_type_info_byname(conn.cursor(), name)
-            if item is None:
-                log.warning("unrecognised item {}".format(name))
-                continue
-            res[item.ID] = 1.0
+    r = industry_conn.execute("""
+            SELECT ID,Name,QuantityBuilt FROM BuildItems;
+            """)
+    for x in r.fetchall():
+        type_id = x[0]
+        item = lib.get_type_info(sde_conn.cursor(), type_id)
+        if item is None:
+            log.warning("unrecognised item {}".format(x[1]))
+        inputs = industry_conn.execute("""
+            SELECT ID,QuantityRequired FROM BuildItemInputs WHERE OutputID=?;
+            """, [type_id])
+        build_cost = 0
+        for i in inputs:
+            p = get_pricing(prices_conn, i[0], date)
+            logging.info("ID={}, i[1]={}, fair_price={}".format(type_id, repr(i[1]), repr(p.fair_price)))
+            build_cost += p.fair_price * i[1]
+        res[item.ID] = build_cost / x[2]
     return res
 
 def read_assets(files: str) -> Dict[int, int]:
@@ -259,9 +268,8 @@ def item_order_key(conn: sqlite3.Connection, s: trade_lib.ItemSummary):
 
 def main():
     logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.DEBUG)
-    arg_parser = ArgumentParser(prog='calc-market-quality.py')
+    arg_parser = ArgumentParser(prog='market_filler.py')
     arg_parser.add_argument('--orderset', type=str)
-    arg_parser.add_argument('--industry', type=str)
     arg_parser.add_argument('--limit-top-traded-items', type=int)
     arg_parser.add_argument('--from-stations', nargs='*', type=int)
     arg_parser.add_argument('--station', type=int)
@@ -272,6 +280,7 @@ def main():
 
     sde_conn = sqlite3.connect("sde.db")
     prices_conn = sqlite3.connect("market-prices.db")
+    industry_conn = sqlite3.connect("industry.db")
     excluded_mpaths = read_market_paths(args.exclude_market_paths) if args.exclude_market_paths is not None else []
 
     with open("top-traded.csv","rt") as tt_fh:
@@ -292,7 +301,7 @@ def main():
             i: pick_prices(prices_conn, item, oinfo.Date) for i, item in items.items()}
     market_model = {i: m for i, m in market_model.items() if m is not None}
 
-    industry_items = read_industry_items(sde_conn, args.industry) if args.industry else set()
+    industry_items = read_industry_items(sde_conn, prices_conn, industry_conn, oinfo.Date)
     assets = read_assets(args.assets) if args.assets else {}
     orders = read_orders(args.station, args.orders) if args.orders else {}
 
@@ -307,7 +316,7 @@ def main():
     w = csv.writer(sys.stdout)
     w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "My Quantity", "Sell Quantity", "My Sell Price", "Stock Quantity", "From StationIDs", "From Station Names", "IndustryCost", "Adjust Order?", "Notes"])
     for s in sorted(trade_suggestions, key=lambda x: item_order_key(sde_conn, market_model[x[0]].trade)):
-        w.writerow([s.ID, s.Name, s.BuyQuantity, '{:.2f}'.format(s.MaxBuy), s.MyAssets + s.MyCurrentSell, s.SellQuantity, "{:.2f}".format(s.MySell), s.StockQuantity, s.FromStationID, s.FromStationName, s.IndustryCost, s.AdjustOrder, ",".join(s.Notes)])
+        w.writerow([s.ID, s.Name, s.BuyQuantity, '{:.2f}'.format(s.MaxBuy), s.MyAssets + s.MyCurrentSell, s.SellQuantity, "{:.2f}".format(s.MySell), s.StockQuantity, s.FromStationID, s.FromStationName, "{:.2f}".format(s.IndustryCost) if s.IndustryCost else '', s.AdjustOrder, ",".join(s.Notes)])
 
 
 if __name__ == "__main__":
