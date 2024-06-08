@@ -6,7 +6,7 @@ import unittest
 import calc_market_quality as calc
 import lib
 
-DUMMY_ITEM = calc.ItemSummary(1, "", 1, 1, 1, 1, 1)
+DUMMY_ITEM = calc.ItemSummary(1, "", 1, 1, "mgroup", 1, 1, 1)
 
 class TestWeightedMean(unittest.TestCase):
     def testSimple(self):

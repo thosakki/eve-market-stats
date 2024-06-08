@@ -94,20 +94,19 @@ def process_orderset(ofile: str, market_model: Dict[int, ItemModel], stations: S
     return ({i: dict(v) for i,v in stock_per_station.items()},
             dict(lowest_sell))
 
-Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'MyQuantity', 'SellQuantity', 'MySell', 'StockQuantity', 'StationID', 'StationName', 'Industry', 'AdjustOrder', 'Notes'])
+Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'MyAssets', 'MyCurrentSell', 'SellQuantity', 'MySell', 'StockQuantity', 'FromStationID', 'FromStationName', 'ToStationID', 'ToStationName', 'BuildQuantity', 'IndustryCost', 'AdjustOrder', 'Notes'])
 
 def bool_to_str(b: bool) -> str:
     return "Y" if b else "N"
 
-def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int], current_assets: int, current_order: Optional[Tuple[int, float]], industry_items: Set[int]) -> Result:
+def suggest_stock(station: int, item: ItemModel, station_stocks: Dict[int, int], current_assets: int, current_order: Optional[Tuple[int, float]], industry_items: Set[int], stock_fraction: float) -> Result:
     min_order = trade_lib.get_order_size(item.trade).MinOrderSize
     notes = item.notes
-    industry = item.trade.ID in industry_items
 
     market_quantity = math.floor(item.trade.ValueTraded / item.buy)
     # original_stock_quantity how much supply of this item we want to be available on the market.
     original_stock_quantity = min_order * math.floor(
-            0.5 + math.floor(market_quantity / 50)/min_order)
+            0.5 + math.floor(market_quantity * stock_fraction)/min_order)
 
     # Reduce potential order by the amount of existing stock below the target sale price.
     existing_stock = station_stocks.get(station, [0,0])[1]
@@ -133,7 +132,7 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
         else:
             notes.append("some stock below target price, volume={}".format(existing_stock))
 
-    # buy_quantity is how much we therefore want to buy.
+    # buy_quantity is how much we therefore want to buy or build.
     adjust_order = False
     buy_quantity = max(0, stock_quantity - current_assets)
     if current_order is not None:
@@ -143,15 +142,34 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
         if item.newSell * 1.1 < current_order[1]:
             adjust_order=True
 
+    return Result(ID=item.trade.ID, Name=item.trade.Name,
+                  BuyQuantity=buy_quantity, MaxBuy=item.buy,
+                  MyAssets=current_assets,
+                  MyCurrentSell=(current_order[0] if current_order else 0),
+                  StockQuantity=original_stock_quantity,
+                  IndustryCost=industry_items.get(item.trade.ID),
+                  AdjustOrder=bool_to_str(adjust_order),
+                  MySell=item.newSell,
+                  Notes=notes,
+                  SellQuantity=None,
+                  FromStationID=None,
+                  FromStationName=None,
+                  ToStationID=None,
+                  ToStationName=None,
+                  BuildQuantity=None)
+
+def suggest_buys(sde_conn: sqlite3.Connection, r: Result, item: ItemModel, station_stocks: Dict[int, int], lowest_sell: Tuple[float, int], allowed_stations: Set[int]) -> Result:
+    min_order = trade_lib.get_order_size(item.trade).MinOrderSize
     from_station = None
     station_info = None
+    notes = []
 
-    if buy_quantity < min_order/2:
-        if existing_stock == 0 and current_assets == 0:
-            notes.append("target stock quantity too low, original_stock_quantity={}, buy_quantity={}, min_order={}".format(original_stock_quantity, buy_quantity, min_order))
+    if r.BuyQuantity < min_order/2:
+        if r.MyCurrentSell == 0 and r.MyAssets == 0:
+            notes.append("target stock quantity too low, original_stock_quantity={}, buy_quantity={}, min_order={}".format(r.StockQuantity, r.BuyQuantity, min_order))
         buy_quantity = 0
     else:
-        buy_quantity = min_order * math.ceil(buy_quantity/min_order)
+        buy_quantity = min_order * math.ceil(r.BuyQuantity/min_order)
 
         # Prefer station with lowest price, then stations with most stock in the target price range.
         for station, stock in sorted(station_stocks.items(), key=lambda x: (x[0] == lowest_sell[1],x[1][0]), reverse=True):
@@ -169,25 +187,16 @@ def suggest_stock(sde_conn: sqlite3.Connection, station: int, item: ItemModel, s
         if from_station is None:
             buy_quantity = 0
 
-    min_stock = min(max(1, original_stock_quantity), max(2, math.ceil(original_stock_quantity / 2)))
-    # sell_quantity is how much we expect to sell after buying. Note the min here - we are limited
-    # both by what we have & can buy, and by how much we wanted to supply.
-    sell_quantity = min(buy_quantity+current_assets, stock_quantity - (current_order[0] if current_order is not None else 0))
-    if buy_quantity == 0 and sell_quantity < min_stock and existing_stock > 0:
-        notes.append("sell quantity {} < min_stock {} and there is existing stock".format(sell_quantity, min_stock))
-        sell_quantity = 0
+    return r._replace(
+            Notes=r.Notes + notes,
+            FromStationID=from_station,
+            BuyQuantity=buy_quantity,
+            SellQuantity=min(buy_quantity+r.MyAssets, max(r.StockQuantity - r.MyCurrentSell, 0)),
+            FromStationName=station_info.Name if from_station else "-"
+            )
 
-    return Result(ID=item.trade.ID, Name=item.trade.Name,
-                  BuyQuantity=buy_quantity, MaxBuy=item.buy,
-                  MyQuantity=(current_order[0] if current_order else 0)+current_assets,
-                  SellQuantity=sell_quantity, MySell=item.newSell,
-                  StockQuantity=original_stock_quantity,
-                  StationID=from_station, StationName=station_info.Name if from_station else "-",
-                  Industry=bool_to_str(industry), AdjustOrder=bool_to_str(adjust_order),
-                  Notes=",".join(notes))
-
-def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
-    res = set()
+def read_industry_items(conn: sqlite3.Connection, filename: str) -> Dict[int, float]:
+    res = dict()
     with open(filename, "rt") as f:
         for i in f:
             name = i.rstrip()
@@ -195,7 +204,7 @@ def read_industry_items(conn: sqlite3.Connection, filename: str) -> Set[int]:
             if item is None:
                 log.warning("unrecognised item {}".format(name))
                 continue
-            res.add(item.ID)
+            res[item.ID] = 1.0
     return res
 
 def read_assets(files: str) -> Dict[int, int]:
@@ -238,6 +247,11 @@ def read_market_paths(filename: str) -> List[str]:
             # could do validation here
             res.append(l)
     return res
+
+def decide_actions(sde_conn, station, item, s,lowest_sell, from_stations, assets, orders, industry, stock_fraction: float):
+    r = suggest_stock(station, item, s, assets, orders, industry, stock_fraction)
+    r = suggest_buys(sde_conn, r, item, s, lowest_sell, from_stations)
+    return r
 
 def item_order_key(conn: sqlite3.Connection, s: trade_lib.ItemSummary):
     info = lib.get_type_info(conn.cursor(), s.ID)
@@ -287,12 +301,13 @@ def main():
     item_stocks, lowest_sell = process_orderset(args.orderset, market_model, all_stations)
 
     trade_suggestions = [
-        suggest_stock(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), orders.get(i), industry_items) for i, s in item_stocks.items()]
+            decide_actions(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), orders.get(i), industry_items, 0.02)
+            for i, s in item_stocks.items()]
 
     w = csv.writer(sys.stdout)
-    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "My Quantity", "Sell Quantity", "My Sell Price", "Stock Quantity", "StationIDs", "Station Names", "Industry?", "Adjust Order?", "Notes"])
+    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "My Quantity", "Sell Quantity", "My Sell Price", "Stock Quantity", "From StationIDs", "From Station Names", "IndustryCost", "Adjust Order?", "Notes"])
     for s in sorted(trade_suggestions, key=lambda x: item_order_key(sde_conn, market_model[x[0]].trade)):
-        w.writerow(list(s))
+        w.writerow([s.ID, s.Name, s.BuyQuantity, '{:.2f}'.format(s.MaxBuy), s.MyAssets + s.MyCurrentSell, s.SellQuantity, "{:.2f}".format(s.MySell), s.StockQuantity, s.FromStationID, s.FromStationName, s.IndustryCost, s.AdjustOrder, ",".join(s.Notes)])
 
 
 if __name__ == "__main__":
