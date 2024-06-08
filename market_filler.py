@@ -94,7 +94,7 @@ def process_orderset(ofile: str, market_model: Dict[int, ItemModel], stations: S
     return ({i: dict(v) for i,v in stock_per_station.items()},
             dict(lowest_sell))
 
-Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'MyAssets', 'MyCurrentSell', 'SellQuantity', 'MySell', 'StockQuantity', 'FromStationID', 'FromStationName', 'ToStationID', 'ToStationName', 'BuildQuantity', 'IndustryCost', 'AdjustOrder', 'Notes'])
+Result = namedtuple('Result', ['ID', 'Name', 'BuyQuantity', 'MaxBuy', 'MyAssets', 'MyCurrentSell', 'SellQuantity', 'MySell', 'StockQuantity', 'FromStationID', 'FromStationName', 'ToStationID', 'ToStationName', 'IndustryCost', 'BuildQuantity', 'AdjustOrder', 'Notes'])
 
 def bool_to_str(b: bool) -> str:
     return "Y" if b else "N"
@@ -163,11 +163,15 @@ def suggest_buys(sde_conn: sqlite3.Connection, r: Result, item: ItemModel, stati
     from_station = None
     station_info = None
     notes = []
+    build_quantity = 0
 
     if r.BuyQuantity < min_order/2:
         if r.MyCurrentSell == 0 and r.MyAssets == 0:
             notes.append("target stock quantity too low, original_stock_quantity={}, buy_quantity={}, min_order={}".format(r.StockQuantity, r.BuyQuantity, min_order))
         buy_quantity = 0
+    elif r.IndustryCost and lowest_sell[0] > r.IndustryCost*1.1:
+        buy_quantity = 0
+        build_quantity = r.BuyQuantity
     else:
         buy_quantity = min_order * math.ceil(r.BuyQuantity/min_order)
 
@@ -192,6 +196,7 @@ def suggest_buys(sde_conn: sqlite3.Connection, r: Result, item: ItemModel, stati
             FromStationID=from_station,
             BuyQuantity=buy_quantity,
             SellQuantity=min(buy_quantity+r.MyAssets, max(r.StockQuantity - r.MyCurrentSell, 0)),
+            BuildQuantity=build_quantity,
             FromStationName=station_info.Name if from_station else "-"
             )
 
@@ -211,7 +216,6 @@ def read_industry_items(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Conne
         build_cost = 0
         for i in inputs:
             p = get_pricing(prices_conn, i[0], date)
-            logging.info("ID={}, i[1]={}, fair_price={}".format(type_id, repr(i[1]), repr(p.fair_price)))
             build_cost += p.fair_price * i[1]
         res[item.ID] = build_cost / x[2]
     return res
@@ -314,9 +318,9 @@ def main():
             for i, s in item_stocks.items()]
 
     w = csv.writer(sys.stdout)
-    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "My Quantity", "Sell Quantity", "My Sell Price", "Stock Quantity", "From StationIDs", "From Station Names", "IndustryCost", "Adjust Order?", "Notes"])
+    w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "My Quantity", "Sell Quantity", "My Sell Price", "Stock Quantity", "From StationIDs", "From Station Names", "IndustryCost", "Build Quantity", "Adjust Order?", "Notes"])
     for s in sorted(trade_suggestions, key=lambda x: item_order_key(sde_conn, market_model[x[0]].trade)):
-        w.writerow([s.ID, s.Name, s.BuyQuantity, '{:.2f}'.format(s.MaxBuy), s.MyAssets + s.MyCurrentSell, s.SellQuantity, "{:.2f}".format(s.MySell), s.StockQuantity, s.FromStationID, s.FromStationName, "{:.2f}".format(s.IndustryCost) if s.IndustryCost else '', s.AdjustOrder, ",".join(s.Notes)])
+        w.writerow([s.ID, s.Name, s.BuyQuantity, '{:.2f}'.format(s.MaxBuy), s.MyAssets + s.MyCurrentSell, s.SellQuantity, "{:.2f}".format(s.MySell), s.StockQuantity, s.FromStationID, s.FromStationName, "{:.2f}".format(s.IndustryCost) if s.IndustryCost else '', s.BuildQuantity, s.AdjustOrder, ",".join(s.Notes)])
 
 
 if __name__ == "__main__":
