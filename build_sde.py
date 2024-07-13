@@ -27,7 +27,7 @@ def build_categories(cur):
         CREATE UNIQUE INDEX Categories_ByName ON Categories(Name);
         """)
 
-    with open("sde/fsd/categoryIDs.yaml", "rt") as fh:
+    with open("sde/fsd/categories.yaml", "rt") as fh:
         loader = yaml.SafeLoader(fh)
 
         # check proper stream start (should never fail)
@@ -162,7 +162,7 @@ def build_groups(cur):
         CREATE UNIQUE INDEX Groups_ByName ON Groups(Name);
         """)
 
-    with open("sde/fsd/groupIDs.yaml", "rt") as fh:
+    with open("sde/fsd/groups.yaml", "rt") as fh:
         loader = yaml.SafeLoader(fh)
 
         # check proper stream start (should never fail)
@@ -212,7 +212,7 @@ def build_types(cur):
         CREATE UNIQUE INDEX Types_ByName ON Types(Name);
         """)
 
-    with open("sde/fsd/typeIDs.yaml", "rt") as types_file:
+    with open("sde/fsd/types.yaml", "rt") as types_file:
         loader = yaml.SafeLoader(types_file)
 
         # check proper stream start (should never fail)

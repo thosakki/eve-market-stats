@@ -1,17 +1,17 @@
-ALL	:	top-traded.csv market-efficiency.csv market-history market-filler-intaki.csv
+ALL	:	top-traded.csv market-efficiency.csv market-history market-filler-intaki.csv market-filler-dodixie.csv
 
 reset	:
 	rm -f $(assets) $(orders) latest-orderset
 
-sde/fsd/typeIDs.yaml	:
+sde/fsd/types.yaml	:
 	curl -O https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip
-	unzip sde.zip
+	unzip sde.zip -d sde
 
-sde.db	:	sde/fsd/typeIDs.yaml
+sde.db	:	sde/fsd/types.yaml
 	rm -f sde.db && ./build_sde.py --initial
 
 top-traded.csv	:	popular*.csv top_market_items.py order-sizes.txt sde.db
-	./top_market_items.py --orderset $< --exclude_category 2 4 5 17 25 41 42 43 65 91 --popular popular*.csv > $@
+	./top_market_items.py --orderset latest-orderset-by-station-type.csv.gz --exclude_category 2 4 5 17 25 41 42 43 65 91 --popular popular*.csv > $@
 
 sde-TRANQUILITY.zip	:
 	curl -O https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip
@@ -48,14 +48,17 @@ orders-%.csv	:	esi/state-%.yaml
 
 orders = $(patsubst esi/state-%.yaml,orders-%.csv,$(wildcard esi/state-*.yaml))
 
-market-filler.csv	:	latest.csv.gz top-traded.csv industry.db market-history $(assets) $(orders)
-	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 60011866 1025824394754 60003166 --limit-top-traded-items 1000 --station 60005686 --assets $(assets) --orders $(orders) > $@
-
 market-filler-intaki.csv	:	latest.csv.gz top-traded.csv industry.db market-history $(assets) $(orders) exclude-market-intaki.txt
 	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 60011866 1025824394754 60003166 60005686 --limit-top-traded-items 800 --station 60015180 --assets $(assets) --exclude_market_paths exclude-market-intaki.txt --orders $(orders) > $@
 
+market-filler-dodixie.csv	:	latest.csv.gz top-traded.csv industry.db market-history $(assets) $(orders)
+	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 1025824394754 60003166 60005686 --limit-top-traded-items 800 --station 60011866 --assets $(assets) --orders $(orders) > $@
+
 industry-items.csv	:	industry.db
 	./list-industry-inputs-outputs.py > $@
+
+industry.db	:	industry-inputs.csv sde.db
+	./load-industry.py --industry industry-inputs.csv
 
 top-traded-measure.1000	:	top-traded-measure.csv
 	./top-1000.sh < $< > $@
