@@ -216,8 +216,15 @@ def read_industry_items(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Conne
         build_cost = 0
         for i in inputs:
             p = get_pricing(prices_conn, i[0], date)
+            if p.fair_price is None:
+                input_type = lib.get_type_info(sde_conn.cursor(), i[0])
+                log.warning("No fair price for {}: {} {}".format(input_type.Name, i[0], date))
+                build_cost = None
+                continue
             build_cost += p.fair_price * i[1]
-        res[item.ID] = build_cost / x[2]
+
+        if build_cost is not None:
+            res[item.ID] = build_cost / x[2]
     return res
 
 def read_assets(files: str) -> Dict[int, int]:
