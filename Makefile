@@ -10,7 +10,7 @@ sde/fsd/types.yaml	:
 sde.db	:	sde/fsd/types.yaml
 	rm -f sde.db && ./build_sde.py --initial
 
-top-traded.csv	:	popular*.csv top_market_items.py order-sizes.txt sde.db
+top-traded.csv	:	popular*.csv top_market_items.py order-sizes.txt sde.db latest-orderset-by-station-type.csv.gz
 	./top_market_items.py --orderset latest-orderset-by-station-type.csv.gz --exclude_category 2 4 5 17 25 41 42 43 65 91 --popular popular*.csv > $@
 
 sde-TRANQUILITY.zip	:
