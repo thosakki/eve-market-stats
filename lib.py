@@ -62,6 +62,20 @@ def get_station_info(cur: sqlite3.Cursor, stationID: int) -> StationInfo:
     row = r[0]
     return StationInfo(row[0], row[1], row[2], row[3])
 
+def get_system_info(cur: sqlite3.Cursor, systemID: int) -> (str, float):
+    res = cur.execute("""
+        SELECT Name, Security
+        FROM Systems
+        WHERE ID = ?
+        """, [systemID])
+    r = res.fetchall()
+    if len(r) == 0:
+        return None
+    if len(r) > 1:
+        raise RuntimeError("multiple values for a name from SDE")
+    row = r[0]
+    return (row[0], row[1])
+
 def read_orderset(orderset_file: str) -> Iterator[Tuple[Order, int]]:
     with gzip.open(orderset_file, "rt") as ofh:
         r = csv.reader(ofh, delimiter="\t")

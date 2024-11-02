@@ -6,6 +6,7 @@ import csv
 import logging
 import math
 import operator
+from pathlib import Path
 import sqlite3
 import yaml
 
@@ -308,6 +309,57 @@ def build_stations(cur):
                 log.error("failed to insert extra '{}'".format(row['ID']))
         cur.commit()
 
+def build_systems(cur):
+    if args.initial:
+        cur.execute("""
+        CREATE TABLE Systems(
+          ID       INT PRIMARY KEY NOT NULL,
+          Name     TEXT NOT NULL,
+          Security FLOAT32 NOT NULL
+        );""")
+
+    names = {}
+
+    with open("sde/bsd/invNames.yaml", "rt") as names_file:
+        loader = yaml.SafeLoader(names_file)
+
+        # check proper stream start (should never fail)
+        assert loader.check_event(yaml.StreamStartEvent)
+        loader.get_event()
+        assert loader.check_event(yaml.DocumentStartEvent)
+        loader.get_event()
+
+        # assume the root element is a sequence
+        assert loader.check_event(yaml.SequenceStartEvent)
+        loader.get_event()
+
+        count = 0
+        # now while the next event does not end the sequence, process each item
+        while not loader.check_event(yaml.SequenceEndEvent):
+            # compose current item to a node as if it was the root node
+            node = loader.compose_node(None, None)
+            # we set deep=True for complete processing of all the node's children
+            v = loader.construct_object(node, True)
+
+            names[v['itemID']] = v['itemName']
+
+        # assume document ends and no further documents are in stream
+        loader.get_event()
+        assert loader.check_event(yaml.DocumentEndEvent)
+        loader.get_event()
+        assert loader.check_event(yaml.StreamEndEvent)
+
+    for path in Path("sde/universe/eve").glob('**/solarsystem.yaml'):
+        with open(path, "rt") as fh:
+            try:
+                d = yaml.safe_load(fh)
+                systemID = d['solarSystemID']
+                cur.execute("""INSERT OR REPLACE INTO Systems VALUES(?,?,?)""",
+                        [systemID, names[systemID], d['security']])
+            except sqlite3.IntegrityError:
+                log.error("failed to insert system from '{}'".format(path))
+        cur.commit()
+
 
 con = sqlite3.connect("sde.db")
 cur = con.cursor()
@@ -317,5 +369,6 @@ build_market_groups(con)
 build_groups(con)
 build_categories(con)
 build_stations(con)
+build_systems(con)
 
 log.info('...done')
