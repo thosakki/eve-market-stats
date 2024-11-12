@@ -200,7 +200,13 @@ def suggest_buys(sde_conn: sqlite3.Connection, r: Result, item: ItemModel, stati
             FromStationName=station_info.Name if from_station else "-"
             )
 
-def read_industry_items(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, industry_conn: sqlite3.Connection, date) -> Dict[int, float]:
+def read_industry_items(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, industry_conn: sqlite3.Connection, exclude_industry: str, date) -> Dict[int, float]:
+    exclude = set()
+    with open(exclude_industry, "rt") as f:
+        for line in f:
+            item = lib.get_type_info_byname(sde_conn, line.rstrip())
+            exclude.add(item.ID)
+
     res = dict()
     r = industry_conn.execute("""
             SELECT ID,Name,QuantityBuilt FROM BuildItems;
@@ -210,6 +216,9 @@ def read_industry_items(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Conne
         item = lib.get_type_info(sde_conn.cursor(), type_id)
         if item is None:
             log.warning("unrecognised item {}".format(x[1]))
+        if item.ID in exclude:
+            continue
+
         inputs = industry_conn.execute("""
             SELECT ID,QuantityRequired FROM BuildItemInputs WHERE OutputID=?;
             """, [type_id])
@@ -287,6 +296,7 @@ def main():
     arg_parser.add_argument('--assets', nargs='*', type=str)
     arg_parser.add_argument('--orders', nargs='*', type=str)
     arg_parser.add_argument('--exclude_market_paths', type=str)
+    arg_parser.add_argument('--exclude_industry', type=str)
     args = arg_parser.parse_args()
 
     sde_conn = sqlite3.connect("sde.db")
@@ -312,7 +322,7 @@ def main():
             i: pick_prices(prices_conn, item, oinfo.Date) for i, item in items.items()}
     market_model = {i: m for i, m in market_model.items() if m is not None}
 
-    industry_items = read_industry_items(sde_conn, prices_conn, industry_conn, oinfo.Date)
+    industry_items = read_industry_items(sde_conn, prices_conn, industry_conn, args.exclude_industry, oinfo.Date)
     assets = read_assets(args.assets) if args.assets else {}
     orders = read_orders(args.station, args.orders) if args.orders else {}
 
