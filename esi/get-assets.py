@@ -26,25 +26,31 @@ def token_update(token):
 def get_assets(config: dict, token: OAuth2Token) -> Iterator[Dict[str, any]]:
   client = OAuth2Session(client_id=config['client_id'], token=token)
   i = 1
+  retries = 0
   while True:
       try:
         raw = client.get('https://esi.evetech.net/v5/characters/{}/assets/?page={}'.format(args.character, i))
+
+        i += 1
+        if i > 10:
+            raise RuntimeError("runaway?")
+        if raw.status_code != 200:
+            if raw.status_code == 404:
+                break
+            raw.raise_for_status()
+        r = raw.json()
+        for x in r:
+            yield x
       except TokenExpiredError as e:
         token = client.refresh_token(token_url=config['token_url'], auth=(config['client_id'], config['client_secret']))
         log.info("refreshed oauth2 token")
         token_update(token)
         raw = client.get('https://esi.evetech.net/v5/characters/{}/assets/?page={}'.format(args.character, i))
-
-      i += 1
-      if i > 10:
-          raise RuntimeError("runaway?")
-      if raw.status_code != 200:
-          if raw.status_code == 404:
-              break
-          raw.raise_for_status()
-      r = raw.json()
-      for x in r:
-          yield x
+      except requests.exceptions.HTTPError as e:
+        retries += 1
+        if retries > 3:
+          raise
+        log.warn("failed to fetch, retrying; {}".format(e))
 
 def main():
   environ['OAUTHLIB_INSECURE_TRANSPORT'] = 'yes'
