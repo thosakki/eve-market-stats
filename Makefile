@@ -55,7 +55,7 @@ market-filler-dodixie.csv	:	latest.csv.gz top-traded.csv industry.db market-hist
 	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 1025824394754 60003166 60005686 --limit-top-traded-items 800 --station 60011866 --assets $(assets) --orders $(orders) --exclude_industry exclude-industry.txt > $@
 
 market-filler-tar.csv	:	latest.csv.gz top-traded.csv industry.db market-history $(assets) $(orders)
-	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 1025824394754 60003166 60005686 --limit-top-traded-items 800 --station 60012739 --assets $(assets) --orders $(orders) --exclude_industry exclude-industry.txt > $@
+	python3 market_filler.py --orderset latest.csv.gz --from-stations 60003760 1025824394754 60003166 60005686 60011866 --limit-top-traded-items 800 --station 60012739 --assets $(assets) --orders $(orders) --exclude_industry exclude-industry.txt > $@
 
 industry-items.csv	:	industry.db
 	./list-industry-inputs-outputs.py > $@
