@@ -81,6 +81,7 @@ def process_orderset(ofile: str, market_model: Dict[int, ItemModel], stations: S
         if x.IsBuy: continue
 
         try:
+            if market_model[x.TypeID].buy is None: continue
             if x.Price < market_model[x.TypeID].buy:
                 stock_per_station[x.TypeID][x.StationID][0] += x.Volume
             if x.Price < market_model[x.TypeID].sell:
@@ -332,7 +333,7 @@ def main():
 
     trade_suggestions = [
             decide_actions(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), orders.get(i), industry_items, 0.02)
-            for i, s in item_stocks.items()]
+            for i, s in item_stocks.items() if i in lowest_sell]
 
     w = csv.writer(sys.stdout)
     w.writerow(["TypeID", "Item Name", "Buy Quantity", "Max Buy", "My Quantity", "Sell Quantity", "My Sell Price", "Stock Quantity", "From StationIDs", "From Station Names", "IndustryCost", "Build Quantity", "Adjust Order?", "Notes"])
