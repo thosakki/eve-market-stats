@@ -1,0 +1,7 @@
+Ammunition & Charges>*>*>Extra Large
+Ammunition & Charges>Missiles>XL Torpedoes>*
+Manufacture & Research>*
+Drones>Fighters>*
+Skills>Spaceship Command
+Structure Equipment>*
+Special Edition Assets>*
