@@ -62,6 +62,20 @@ def get_station_info(cur: sqlite3.Cursor, stationID: int) -> StationInfo:
     row = r[0]
     return StationInfo(row[0], row[1], row[2], row[3])
 
+def get_station_info_byname(cur: sqlite3.Cursor, station: str) -> StationInfo:
+    res = cur.execute("""
+    SELECT ID, Name, SystemID, RegionID
+    FROM Stations
+    WHERE Name = ?
+    """, [station])
+    r = res.fetchall()
+    if len(r) == 0:
+        return None
+    if len(r) > 1:
+        raise RuntimeError("multiple values for a name from SDE")
+    row = r[0]
+    return StationInfo(row[0], row[1], row[2], row[3])
+
 def get_system_info(cur: sqlite3.Cursor, systemID: int) -> (str, float):
     res = cur.execute("""
         SELECT Name, Security
