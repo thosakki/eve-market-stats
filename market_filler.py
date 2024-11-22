@@ -11,6 +11,7 @@ import math
 import sqlite3
 import sys
 from typing import Dict, Iterator, List, Optional, Set, Tuple
+import yaml
 
 import lib
 import trade_lib
@@ -21,6 +22,23 @@ log = logging.getLogger(__name__)
 class ItemPricing():
     other_stations: Dict[int, Tuple[float, float]]
     fair_price: float
+
+def get_sources(conn: sqlite3.Connection, to: str, fname: str) -> (int, Dict[int, dict]):
+    with open(fname, "rt") as fh:
+        d = yaml.safe_load(fh)
+        for x in d:
+            if x['id'] == to:
+                to_id = lib.get_station_info_byname(conn, x['to']).ID
+                from_stations = {
+                        lib.get_station_info_byname(conn, y['name']).ID: {
+                            'isk_cost': y.get('isk_cost', 0),
+                            'vol_cost': y.get('isk_cost', 0)
+                            }
+                        for y in x['from']
+                        }
+                return to_id, from_stations
+
+        raise RuntimeError('failed to find source {}'.format(to))
 
 def get_pricing(conn: sqlite3.Connection, type_id: int, date: datetime.date) -> ItemPricing:
     current_prices = dict()
@@ -278,7 +296,7 @@ def read_market_paths(filename: str) -> List[str]:
             res.append(l)
     return res
 
-def decide_actions(sde_conn, station, item, s,lowest_sell, from_stations, assets, orders, industry, stock_fraction: float):
+def decide_actions(sde_conn: sqlite3.Connection, station: int, item, s,lowest_sell, from_stations, assets, orders, industry, stock_fraction: float):
     r = suggest_stock(station, item, s, assets, orders, industry, stock_fraction)
     r = suggest_buys(sde_conn, r, item, s, lowest_sell, from_stations)
     return r
@@ -292,8 +310,8 @@ def main():
     arg_parser = ArgumentParser(prog='market_filler.py')
     arg_parser.add_argument('--orderset', type=str)
     arg_parser.add_argument('--limit-top-traded-items', type=int)
-    arg_parser.add_argument('--from-stations', nargs='*', type=int)
-    arg_parser.add_argument('--station', type=int)
+    arg_parser.add_argument('--station', type=str)
+    arg_parser.add_argument('--sources', type=str)
     arg_parser.add_argument('--assets', nargs='*', type=str)
     arg_parser.add_argument('--orders', nargs='*', type=str)
     arg_parser.add_argument('--exclude_market_paths', type=str)
@@ -305,6 +323,9 @@ def main():
     industry_conn = sqlite3.connect("industry.db")
     excluded_mpaths = read_market_paths(args.exclude_market_paths) if args.exclude_market_paths is not None else []
 
+    to_station, from_stations = get_sources(sde_conn, args.station, args.sources)
+    logging.info("assessing market needs for {}".format(to_station))
+    logging.info("source stations {}".format(','.join([str(x) for x in from_stations.keys()])))
     with open("top-traded.csv","rt") as tt_fh:
         items = {}
         for s in trade_lib.get_most_traded_items(tt_fh, args.limit_top_traded_items):
@@ -325,14 +346,14 @@ def main():
 
     industry_items = read_industry_items(sde_conn, prices_conn, industry_conn, args.exclude_industry, oinfo.Date)
     assets = read_assets(args.assets) if args.assets else {}
-    orders = read_orders(args.station, args.orders) if args.orders else {}
+    orders = read_orders(to_station, args.orders) if args.orders else {}
 
-    all_stations = set(args.from_stations)
-    all_stations.add(args.station)
+    all_stations = set(from_stations.keys())
+    all_stations.add(to_station)
     item_stocks, lowest_sell = process_orderset(args.orderset, market_model, all_stations)
 
     trade_suggestions = [
-            decide_actions(sde_conn, args.station, market_model[i], s, lowest_sell[i], set(args.from_stations), assets.get(i, 0), orders.get(i), industry_items, 0.02)
+            decide_actions(sde_conn, to_station, market_model[i], s, lowest_sell[i], from_stations, assets.get(i, 0), orders.get(i), industry_items, 0.02)
             for i, s in item_stocks.items() if i in lowest_sell]
 
     w = csv.writer(sys.stdout)
