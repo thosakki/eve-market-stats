@@ -187,7 +187,7 @@ class TestSuggestStock(unittest.TestCase):
         self.assertEqual(r.SellQuantity, 5)
         self.assertEqual(r.FromStationID, self.ALLOW[0])
 
-    def testBuyReducedByCompetitorStock(self):
+    def testBuyReducedToZeroByCompetitorStock(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
         r = m.decide_actions(self.sde_conn, self.DEST, im, {
             self.ALLOW[0]: [1000, 1000],
@@ -195,9 +195,21 @@ class TestSuggestStock(unittest.TestCase):
             }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, None, {}, 0.04)
         self.assertEqual(r.ID, 1)
         self.assertEqual(r.Name, "Item1")
-        self.assertEqual(r.BuyQuantity, 1)
-        self.assertEqual(r.SellQuantity, 1)
+        self.assertEqual(r.BuyQuantity, 0)
+        self.assertEqual(r.SellQuantity, 0)
         self.assertEqual(r.StockQuantity, 3)
+
+    def testBuyReducedByCompetitorStock(self):
+        im = m.ItemModel(self.ts(1), buy=40, sell=45, newSell=90, notes=[])
+        r = m.decide_actions(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [1000, 1000],
+            self.DEST: [0, 2],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, None, {}, 0.04)
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.BuyQuantity, 6)
+        self.assertEqual(r.SellQuantity, 6)
+        self.assertEqual(r.StockQuantity, 8)
         self.assertEqual(r.FromStationID, self.ALLOW[0])
 
     def testBuyFromLowestPriceStation(self):
@@ -209,6 +221,7 @@ class TestSuggestStock(unittest.TestCase):
             }, (78.4, self.ALLOW[1]), set(self.ALLOW), 0, None, {}, 0.04)
         self.assertEqual(r.ID, 1)
         self.assertEqual(r.Name, "Item1")
+        self.assertEqual(r.BuyQuantity, 5)
         self.assertEqual(r.SellQuantity, 5)
         self.assertEqual(r.FromStationID, self.ALLOW[1])
 
@@ -258,8 +271,23 @@ class TestSuggestStock(unittest.TestCase):
         r = m.decide_actions(self.sde_conn, self.DEST, im, {
             self.ALLOW[0]: [10000, 10000],
             self.ALLOW[1]: [0, 1000],
-            self.DEST: [0, 100],
-            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, [100, 89], {}, 0.04)
+            self.DEST: [0, 10],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, [10, 89], {}, 0.04)
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.BuyQuantity, 0)
+        self.assertEqual(r.SellQuantity, 0)
+        self.assertEqual(r.StockQuantity, 5)
+        self.assertEqual(r.FromStationID, None)
+        self.assertEqual(r.FromStationName, '-')
+        self.assertIn("already in stock", "".join(r.Notes))
+
+    def testDontSellIfOwnSupplyEvenWhenBelowTarget(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.decide_actions(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [10000, 10000],
+            self.ALLOW[1]: [0, 1000],
+            self.DEST: [0, 2],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 0, [2, 89], {}, 0.04)
         self.assertEqual(r.ID, 1)
         self.assertEqual(r.BuyQuantity, 0)
         self.assertEqual(r.SellQuantity, 0)

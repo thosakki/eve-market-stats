@@ -140,16 +140,21 @@ def suggest_stock(station: int, item: ItemModel, station_stocks: Dict[int, int],
     # Basically we assume that if a competitor is stocking a substantial amount now, they will stock more
     # later and we should greatly reduce or even not bother trying to supply it ourselves.
     original_stock_quantity = max(0, original_stock_quantity-competitor_stock)
-    stock_quantity = original_stock_quantity
 
-    # stock_quantity is how much *we* want to supply to the market (not including any stock that
+    # stock_quantity is how much more *we* want to supply to the market (not including any stock that
     # we already listed) - before considering availability.
-    stock_quantity = max(0, stock_quantity - existing_stock)
     if existing_stock > 0:
-        if stock_quantity == 0:
+        # We reduce our potential stocking even more aggressively if we have an order up already
+        # note that existing stock may include an existing order, so this is really:
+        # competitor stock*2 + my_stock_below_target*2 + my_stock_total*2
+        if existing_stock*2 + (current_order[0]*2 if current_order is not None else 0) > original_stock_quantity:
+            stock_quantity = 0
             notes.append("already in stock below target price, volume={}".format(existing_stock))
         else:
+            stock_quantity = max(0, original_stock_quantity - existing_stock)
             notes.append("some stock below target price, volume={}".format(existing_stock))
+    else:
+        stock_quantity = original_stock_quantity
 
     # buy_quantity is how much we therefore want to buy or build.
     adjust_order = False
@@ -311,6 +316,7 @@ def main():
     arg_parser.add_argument('--orderset', type=str)
     arg_parser.add_argument('--limit-top-traded-items', type=int)
     arg_parser.add_argument('--station', type=str)
+    arg_parser.add_argument('--stock_fraction', type=float, default=0.02)
     arg_parser.add_argument('--sources', type=str)
     arg_parser.add_argument('--assets', nargs='*', type=str)
     arg_parser.add_argument('--orders', nargs='*', type=str)
@@ -353,7 +359,7 @@ def main():
     item_stocks, lowest_sell = process_orderset(args.orderset, market_model, all_stations)
 
     trade_suggestions = [
-            decide_actions(sde_conn, to_station, market_model[i], s, lowest_sell[i], from_stations, assets.get(i, 0), orders.get(i), industry_items, 0.02)
+            decide_actions(sde_conn, to_station, market_model[i], s, lowest_sell[i], from_stations, assets.get(i, 0), orders.get(i), industry_items, args.stock_fraction)
             for i, s in item_stocks.items() if i in lowest_sell]
 
     w = csv.writer(sys.stdout)
