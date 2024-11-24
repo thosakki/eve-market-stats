@@ -67,6 +67,7 @@ class TestGetTypeInfo(unittest.TestCase):
           RegionID INT NOT NULL
         );""")
         c.execute("""INSERT INTO Stations VALUES(?,?,?,?);""", [1234, "Amo - Minmatar Fleet Market", 123, 100])
+        c.execute("""INSERT INTO Stations VALUES(?,?,?,?);""", [4321, "Jita IV - Moon 4 - Caldari Navy Assembly Plant", 12, 20])
 
     def tearDown(self):
         self.conn.close()
@@ -80,6 +81,16 @@ class TestGetTypeInfo(unittest.TestCase):
 
     def testGetStationInfoFailed(self):
         self.assertIsNone(lib.get_station_info(self.conn.cursor(), 9999))
+
+    def testGetStationInfo(self):
+        s = lib.get_station_info_byname(self.conn.cursor(), "Jita IV - Moon 4 - Caldari Navy Assembly Plant")
+        self.assertEqual(s.ID, 4321)
+        self.assertEqual(s.Name, "Jita IV - Moon 4 - Caldari Navy Assembly Plant")
+        self.assertEqual(s.SystemID, 12)
+        self.assertEqual(s.RegionID, 20)
+
+    def testGetStationInfoFailed(self):
+        self.assertIsNone(lib.get_station_info_byname(self.conn.cursor(), "Jita IV - Moon 3 - Not Here"))
 
 class TestReadOrderset(unittest.TestCase):
     def runTest(self):
