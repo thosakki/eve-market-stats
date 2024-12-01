@@ -326,5 +326,20 @@ class TestSuggestStock(unittest.TestCase):
         self.assertEqual(r.FromStationName, '-')
         self.assertIn("already listed for sale", "".join(r.Notes))
 
+    def testDontSellIfSufficientCompetitorSupplyAndStock(self):
+        im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
+        r = m.decide_actions(self.sde_conn, self.DEST, im, {
+            self.ALLOW[0]: [10000, 10000],
+            self.ALLOW[1]: [0, 1000],
+            self.DEST: [0, 2],
+            }, (78.4, self.ALLOW[0]), set(self.ALLOW), 2, None, {}, 0.04)
+        self.assertEqual(r.ID, 1)
+        self.assertEqual(r.BuyQuantity, 0)
+        self.assertEqual(r.SellQuantity, 0)
+        self.assertEqual(r.StockQuantity, 3)
+        self.assertEqual(r.FromStationID, None)
+        self.assertEqual(r.FromStationName, '-')
+        self.assertIn("already in stock", "".join(r.Notes))
+
 
 unittest.main()

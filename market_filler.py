@@ -175,7 +175,9 @@ def suggest_stock(station: int, item: ItemModel, station_stocks: Dict[int, int],
                   AdjustOrder=bool_to_str(adjust_order),
                   MySell=item.newSell,
                   Notes=notes,
-                  SellQuantity=None,
+                  # Before going to SuggestBuys, SellQuantity is the amount we
+                  # want additionally to sell if we buy/build *nothing*.
+                  SellQuantity=stock_quantity - buy_quantity,
                   FromStationID=None,
                   FromStationName=None,
                   ToStationID=None,
@@ -219,7 +221,7 @@ def suggest_buys(sde_conn: sqlite3.Connection, r: Result, item: ItemModel, stati
             Notes=r.Notes + notes,
             FromStationID=from_station,
             BuyQuantity=buy_quantity,
-            SellQuantity=min(buy_quantity+r.MyAssets, max(r.StockQuantity - r.MyCurrentSell, 0)),
+            SellQuantity=min(buy_quantity+r.SellQuantity, max(r.StockQuantity - r.MyCurrentSell, 0)),
             BuildQuantity=build_quantity,
             FromStationName=station_info.Name if from_station else "-"
             )
