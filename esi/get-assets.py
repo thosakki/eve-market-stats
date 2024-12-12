@@ -5,6 +5,7 @@ import csv
 import logging
 from oauthlib.oauth2.rfc6749.tokens import OAuth2Token
 from os import environ
+import requests
 from requests_oauthlib import OAuth2Session
 import sys
 from typing import Dict, Iterator
