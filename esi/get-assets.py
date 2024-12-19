@@ -18,25 +18,26 @@ logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=loggi
 log = logging.getLogger(__name__)
 arg_parser = ArgumentParser(prog='get-token.py')
 arg_parser.add_argument('--character', type=int)
+arg_parser.add_argument('--corporation', type=int)
 args = arg_parser.parse_args()
 
 def token_update(token):
     with open("state-{}.yaml".format(args.character), "wt") as tokenfile:
         oauth_token.ToYaml(tokenfile, token)
 
-def get_assets(config: dict, token: OAuth2Token) -> Iterator[Dict[str, any]]:
+def get_assets(config: dict, target: str, token: OAuth2Token) -> Iterator[Dict[str, any]]:
   client = OAuth2Session(client_id=config['client_id'], token=token)
   i = 1
   retries = 0
   while True:
       try:
-        raw = client.get('https://esi.evetech.net/v5/characters/{}/assets/?page={}'.format(args.character, i))
+        raw = client.get('https://esi.evetech.net/v5/{}/assets/?page={}'.format(target, i))
 
         i += 1
         if i > 10:
             raise RuntimeError("runaway?")
         if raw.status_code != 200:
-            if raw.status_code == 404:
+            if raw.status_code == 404 or (target.startswith("corp") and raw.status_code == 500):
                 break
             raw.raise_for_status()
         r = raw.json()
@@ -64,7 +65,12 @@ def main():
   w = csv.writer(sys.stdout)
   # {'is_singleton': False, 'item_id': 1043802222344, 'location_flag': 'Hangar', 'location_id': 60005686, 'location_type': 'station', 'quantity': 2, 'type_id': 37457}
   w.writerow(['TypeID', 'Singleton', 'Quantity', 'LocationFlag', 'LocationType', 'LocationID'])
-  for r in get_assets(config, token):
+
+  target = 'characters/{}'.format(args.character)
+  if args.corporation is not None:
+      target = 'corporations/{}'.format(args.corporation)
+
+  for r in get_assets(config, target, token):
       w.writerow([r['type_id'], 'True' if r['is_singleton'] else 'False',  r['quantity'], r['location_flag'], r['location_type'], r['location_id']])
 
 

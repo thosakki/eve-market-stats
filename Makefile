@@ -38,10 +38,13 @@ latest.csv.gz	:	latest-orderset
 	curl -f -O https://market.fuzzwork.co.uk/orderbooks/orderset-$$(cat $<).csv.gz
 	ln -sf orderset-$$(cat $<).csv.gz $@
 
+assets-corporation.csv	:
+	(cd esi && ./get-assets.py --character $$(cat corporation.character) --corporation $$(cat corporation.corporation) ) > $@
+
 assets-%.csv	:	esi/state-%.yaml
 	(cd esi && ./get-assets.py --character $(patsubst esi/state-%.yaml,%,$^)) > $@
 
-assets = $(patsubst esi/state-%.yaml,assets-%.csv,$(wildcard esi/state-*.yaml))
+assets = $(patsubst esi/state-%.yaml,assets-%.csv,$(wildcard esi/state-*.yaml)) assets-corporation.csv
 
 orders-%.csv	:	esi/state-%.yaml
 	(cd esi && ./get-orders.py --character $(patsubst esi/state-%.yaml,%,$^)) > $@
