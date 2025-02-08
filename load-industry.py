@@ -52,6 +52,10 @@ with open(args.industry) as fh:
         if inputInfo is None:
             log.warn("input {} not recognised".format(inputName))
             continue
-        cur.execute("""INSERT OR REPLACE INTO BuildItems VALUES(?,?,?)""",[outputInfo.ID, outputInfo.Name, locale.atoi(r["Quantity made"])])
-        cur.execute("""INSERT OR REPLACE INTO BuildItemInputs VALUES(?,?,?)""",[inputInfo.ID, outputInfo.ID, locale.atof(r["Quantity for N"])])
+        try:
+            cur.execute("""INSERT OR REPLACE INTO BuildItems VALUES(?,?,?)""",[outputInfo.ID, outputInfo.Name, locale.atoi(r["Quantity made"])])
+            cur.execute("""INSERT OR REPLACE INTO BuildItemInputs VALUES(?,?,?)""",[inputInfo.ID, outputInfo.ID, locale.atof(r["Quantity for N"])])
+        except ValueError as e:
+            logging.error("input {}".format(repr(r)))
+            raise
     industryDB.commit()
