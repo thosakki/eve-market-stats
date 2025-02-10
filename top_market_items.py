@@ -17,7 +17,6 @@ import trade_lib
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.INFO)
 log = logging.getLogger(__name__)
 arg_parser = ArgumentParser(prog='top-market-items')
-arg_parser.add_argument('--orderset', type=str)
 arg_parser.add_argument('--include_group', nargs='*', type=int)
 arg_parser.add_argument('--exclude_group', nargs='*', type=int)
 arg_parser.add_argument('--include_category', nargs='*', type=int)
@@ -76,26 +75,13 @@ def parse_agg_what(s: str) -> (int, int, bool):
     region,  type_id, is_buy = s.split('|')
     return (int(region), int(type_id), is_buy=='true')
 
-log.info('Reading buy & sell prices')
-for o, _ in lib.read_orderset(args.orderset):
-    # Jita 4-4, Dodixie FNAP, Amarr EFA
-    if o.StationID not in (60003760, 60011866, 60008494): continue
-    if o.TypeID not in items: continue
-    if o.IsBuy:
-        if items[o.TypeID].get('buy',0) < o.Price:
-            items[o.TypeID]['buy'] = o.Price
-    else:
-        if 'sell' not in items[o.TypeID] or items[o.TypeID]['sell'] > o.Price:
-            items[o.TypeID]['sell'] = o.Price
-log.info('...read buy & sell prices')
-
 log.info('Producing output...')
 count = 0
 
 w = csv.writer(sys.stdout, delimiter=',', quotechar='"', quoting=csv.QUOTE_MINIMAL)
-w.writerow(['ID', 'Name', 'GroupID', 'CategoryID', 'MarketGroup', 'Value Traded', 'Buy', 'Sell'])
+w.writerow(['ID', 'Name', 'GroupID', 'CategoryID', 'MarketGroup', 'Value Traded'])
 for id, d in sorted(items.items(), key=lambda x: x[1]['score'], reverse=True):
-    w.writerow([d['ID'], d['Name'], d['GroupID'], d['CategoryID'], d['MarketGroup'], d['value'], d.get('buy', '-'), d.get('sell', '-')])
+    w.writerow([d['ID'], d['Name'], d['GroupID'], d['CategoryID'], d['MarketGroup'], d['value']])
     count += 1
     if count > 10000:
         break

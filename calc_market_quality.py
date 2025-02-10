@@ -44,7 +44,7 @@ def emit_station_stats(w, stationID: int, efficiencies: List[Tuple[int, float, f
     w.writerow([str(stationID), station_info.Name if station_info is not None else "-", '{:.1f}'.format(coverage*100), eff_str])
 
 
-def get_station_stats(ofile: str, items: Dict[int, ItemSummary], oinfo: lib.OrdersetInfo) -> Iterator[Tuple[int, List[Tuple[int, float, float]]]]:
+def get_station_stats(ofile: str, items: Dict[int, ItemSummary], best_price: Dict[int, float], oinfo: lib.OrdersetInfo) -> Iterator[Tuple[int, List[Tuple[int, float, float]]]]:
     current_station = None
     current_type = None
     current_station_price_efficiencies = None
@@ -54,7 +54,7 @@ def get_station_stats(ofile: str, items: Dict[int, ItemSummary], oinfo: lib.Orde
 
         if current_type is not None and current_type != x.TypeID:
             if current_type_best_sell is not None:
-                all_best_sell = items[current_type].Sell
+                all_best_sell = best_price.get(current_type)
                 if all_best_sell is None:
                     log.info("no best sell price for common item? {}".format(current_type))
                     efficiency = 1.0
@@ -92,6 +92,18 @@ def output(csv_fh: IO, oinfo: lib.OrdersetInfo):
         row['Date'] = oinfo.Date.date().isoformat()
         w.writerow(row)
 
+def get_best_sell_prices(orderset: str) -> Dict[int, float]:
+    best_price = {}
+    log.info('Reading buy & sell prices')
+    for o, _ in lib.read_orderset(orderset):
+        # Jita 4-4, Dodixie FNAP, Amarr EFA
+        if o.StationID not in (60003760, 60011866, 60008494): continue
+        if o.IsBuy: continue
+        if o.TypeID not in best_price or best_price[o.TypeID] > o.Price:
+            best_price[o.TypeID] = o.Price
+    log.info('...read buy & sell prices')
+    return best_price
+
 def main():
     arg_parser = ArgumentParser(prog='calc-market-quality.py')
     arg_parser.add_argument('--orderset', type=str)
@@ -107,12 +119,14 @@ def main():
         items = {s.ID: s for s in trade_lib.get_most_traded_items(tt_fh, args.limit_top_traded_items)}
         log.info("Basket of items loaded, {} items".format(len(items)))
 
+    best_price = get_best_sell_prices(args.orderset)
+
     temp_station_stats = tempfile.TemporaryFile(mode='w+t')
     w = csv.writer(temp_station_stats)
     w.writerow(['StationID', 'Station Name', 'Coverage %', 'Inefficiency %'])
 
     oinfo = lib.OrdersetInfo(None, None)
-    for s, e in get_station_stats(args.orderset, items, oinfo):
+    for s, e in get_station_stats(args.orderset, items, best_price, oinfo):
         emit_station_stats(w, s, e, c, items, args.dump_detail_for)
 
     temp_station_stats.seek(0)

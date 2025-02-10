@@ -3,7 +3,7 @@ from functools import cache
 from typing import IO, Iterator, List, Optional
 import csv
 
-ItemSummary = namedtuple('ItemSummary', ['ID', 'Name', 'GroupID', 'CategoryID', 'MarketGroup', 'ValueTraded', 'Buy', 'Sell'])
+ItemSummary = namedtuple('ItemSummary', ['ID', 'Name', 'GroupID', 'CategoryID', 'MarketGroup', 'ValueTraded'])
 OrderSizeRule = namedtuple('OrderSizeRule', ['Prefix', 'NormalMarketSize', 'MinOrderSize'])
 
 def parse_float(x: str) -> Optional[float]:
@@ -16,7 +16,7 @@ def get_most_traded_items(fh: IO, max_items: Optional[int]) -> Iterator[ItemSumm
     count = 0
     for row in r:
         try:
-            yield ItemSummary(ID=int(row['ID']), Name=row['Name'], GroupID=int(row['GroupID']), CategoryID=int(row['CategoryID']), MarketGroup=row['MarketGroup'], ValueTraded=float(row['Value Traded']), Buy=parse_float(row['Buy']), Sell=parse_float(row['Sell']))
+            yield ItemSummary(ID=int(row['ID']), Name=row['Name'], GroupID=int(row['GroupID']), CategoryID=int(row['CategoryID']), MarketGroup=row['MarketGroup'], ValueTraded=float(row['Value Traded']))
         except (ValueError, KeyError) as e:
             raise RuntimeError("Failed to parse line {}: {}".format(row, e))
         count += 1
