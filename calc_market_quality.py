@@ -96,8 +96,8 @@ def get_best_sell_prices(orderset: str) -> Dict[int, float]:
     best_price = {}
     log.info('Reading buy & sell prices')
     for o, _ in lib.read_orderset(orderset):
-        # Jita 4-4, Dodixie FNAP, Amarr EFA
-        if o.StationID not in (60003760, 60011866, 60008494): continue
+        # Jita 4-4, Dodixie FNAP, Amarr EFA, Hek BCF
+        if o.StationID not in (60003760, 60011866, 60008494, 60005686): continue
         if o.IsBuy: continue
         if o.TypeID not in best_price or best_price[o.TypeID] > o.Price:
             best_price[o.TypeID] = o.Price
