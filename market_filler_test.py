@@ -43,7 +43,7 @@ class TestPickPrices(unittest.TestCase):
 
     @staticmethod
     def ts(i: int):
-        return trade_lib.ItemSummary(i, "", 1, 1, "mgroup", 1, 1, 1)
+        return trade_lib.ItemSummary(i, "", 1, 1, "mgroup", 1)
 
     def testSimple(self):
         self.AddPrices(1, self.TODAY, self.JITA, [100]*3, [110]*3, [1000]*3)
@@ -69,7 +69,7 @@ class TestProcessOrderset(unittest.TestCase):
 
     @staticmethod
     def ts(i: int):
-        return trade_lib.ItemSummary(i, "", 1, 1, "mgroup", 1, 1, 1)
+        return trade_lib.ItemSummary(i, "", 1, 1, "mgroup", 1)
 
     def testStocks(self):
         im = m.ItemModel(self.ts(12608), buy=80, sell=90, newSell=90, notes=[])
@@ -104,7 +104,7 @@ class TestSuggestStock(unittest.TestCase):
 
     @staticmethod
     def ts(i: int):
-        return trade_lib.ItemSummary(i, "Item{}".format(i), 1, 1, "mgroup", 10000, 1, 100)
+        return trade_lib.ItemSummary(i, "Item{}".format(i), 1, 1, "mgroup", 10000)
 
     def testAlreadyInStock(self):
         im = m.ItemModel(self.ts(1), buy=80, sell=90, newSell=90, notes=[])
@@ -239,7 +239,7 @@ class TestSuggestStock(unittest.TestCase):
         self.assertEqual(r.FromStationID, None)
 
     def testDontBuyIfTooFewNeeded(self):
-        im = m.ItemModel(trade_lib.ItemSummary(2, "Charge S", 1, 8, "Ammunition & Charges>Hybrid Charges", 10000, 1, 100), buy=80, sell=90, newSell=90, notes=[])
+        im = m.ItemModel(trade_lib.ItemSummary(2, "Charge S", 1, 8, "Ammunition & Charges>Hybrid Charges", 10000), buy=80, sell=90, newSell=90, notes=[])
         r = m.decide_actions(self.sde_conn, self.DEST, im, {
             self.ALLOW[0]: [10000, 10000],
             self.ALLOW[1]: [0, 1000],
