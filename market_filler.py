@@ -317,6 +317,7 @@ def main():
     arg_parser = ArgumentParser(prog='market_filler.py')
     arg_parser.add_argument('--orderset', type=str)
     arg_parser.add_argument('--limit-top-traded-items', type=int)
+    arg_parser.add_argument('--top-traded-items', type=str)
     arg_parser.add_argument('--station', type=str)
     arg_parser.add_argument('--stock_fraction', type=float, default=0.02)
     arg_parser.add_argument('--sources', type=str)
@@ -334,7 +335,7 @@ def main():
     to_station, from_stations = get_sources(sde_conn, args.station, args.sources)
     logging.info("assessing market needs for {}".format(to_station))
     logging.info("source stations {}".format(','.join([str(x) for x in from_stations.keys()])))
-    with open("top-traded.csv","rt") as tt_fh:
+    with open(args.top_traded_items, "rt") as tt_fh:
         items = {}
         for s in trade_lib.get_most_traded_items(tt_fh, args.limit_top_traded_items):
             excluded = False
