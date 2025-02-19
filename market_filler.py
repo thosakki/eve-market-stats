@@ -6,22 +6,19 @@ import csv
 from dataclasses import dataclass
 import datetime
 from fnmatch import fnmatch
+import industry
 import logging
 import math
 import sqlite3
 import sys
-from typing import Dict, Iterator, List, Optional, Set, Tuple
+from typing import Dict, List, Optional, Set, Tuple
 import yaml
 
 import lib
+from price_lib import get_pricing
 import trade_lib
 
 log = logging.getLogger(__name__)
-
-@dataclass
-class ItemPricing():
-    other_stations: Dict[int, Tuple[float, float]]
-    fair_price: float
 
 def get_sources(conn: sqlite3.Connection, to: str, fname: str) -> (int, Dict[int, dict]):
     with open(fname, "rt") as fh:
@@ -39,23 +36,6 @@ def get_sources(conn: sqlite3.Connection, to: str, fname: str) -> (int, Dict[int
                 return to_id, from_stations
 
         raise RuntimeError('failed to find source {}'.format(to))
-
-def get_pricing(conn: sqlite3.Connection, type_id: int, date: datetime.date) -> ItemPricing:
-    current_prices = dict()
-    res = conn.execute("""
-    SELECT StationID, Buy, Sell, SellVolume FROM PriceHistory
-    WHERE TypeID=? AND Date=?""", [type_id, date.isoformat()])
-    current_prices = {
-            r[0]: (r[2], r[3]) for r in res.fetchall()
-            }
-    res = conn.execute("""
-    SELECT AVG(daily_price) FROM (
-      SELECT Date,MIN(Sell) AS daily_price FROM PriceHistory
-      WHERE TypeID=? AND Date > date(?, "-3 months")
-        AND StationID IN (60003760, 60011866, 60008494) -- Jita 4-4, Dodixie FNAP, Amarr EFA
-      GROUP BY Date)""", [type_id, date.isoformat()])
-    fair_price = res.fetchall()[0][0]
-    return ItemPricing(other_stations=current_prices, fair_price=fair_price)
 
 @dataclass
 class ItemModel:
@@ -226,42 +206,6 @@ def suggest_buys(sde_conn: sqlite3.Connection, r: Result, item: ItemModel, stati
             FromStationName=station_info.Name if from_station else "-"
             )
 
-def read_industry_items(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, industry_conn: sqlite3.Connection, exclude_industry: str, date) -> Dict[int, float]:
-    exclude = set()
-    with open(exclude_industry, "rt") as f:
-        for line in f:
-            item = lib.get_type_info_byname(sde_conn, line.rstrip())
-            exclude.add(item.ID)
-
-    res = dict()
-    r = industry_conn.execute("""
-            SELECT ID,Name,QuantityBuilt FROM BuildItems;
-            """)
-    for x in r.fetchall():
-        type_id = x[0]
-        item = lib.get_type_info(sde_conn.cursor(), type_id)
-        if item is None:
-            log.warning("unrecognised item {}".format(x[1]))
-        if item.ID in exclude:
-            continue
-
-        inputs = industry_conn.execute("""
-            SELECT ID,QuantityRequired FROM BuildItemInputs WHERE OutputID=?;
-            """, [type_id])
-        build_cost = 0
-        for i in inputs:
-            p = get_pricing(prices_conn, i[0], date)
-            if p.fair_price is None:
-                input_type = lib.get_type_info(sde_conn.cursor(), i[0])
-                log.warning("No fair price for {}: {} {}".format(input_type.Name, i[0], date))
-                build_cost = None
-                continue
-            build_cost += p.fair_price * i[1]
-
-        if build_cost is not None:
-            res[item.ID] = build_cost / x[2]
-    return res
-
 def read_assets(files: str) -> Dict[int, int]:
     res = defaultdict(int)
     for filename in files:
@@ -353,7 +297,7 @@ def main():
             i: pick_prices(prices_conn, item, oinfo.Date) for i, item in items.items()}
     market_model = {i: m for i, m in market_model.items() if m is not None}
 
-    industry_items = read_industry_items(sde_conn, prices_conn, industry_conn, args.exclude_industry, oinfo.Date)
+    industry_items = industry.read_items(sde_conn, prices_conn, industry_conn, args.exclude_industry, oinfo.Date)
     assets = read_assets(args.assets) if args.assets else {}
     orders = read_orders(to_station, args.orders) if args.orders else {}
 
