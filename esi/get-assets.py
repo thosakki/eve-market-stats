@@ -32,14 +32,14 @@ def get_assets(config: dict, target: str, token: OAuth2Token) -> Iterator[Dict[s
   while True:
       try:
         raw = client.get('https://esi.evetech.net/v5/{}/assets/?page={}'.format(target, i))
+        if raw.status_code != 200:
+            if raw.status_code in (504,404) or (target.startswith("corp") and raw.status_code == 500):
+                break
+            raw.raise_for_status()
 
         i += 1
         if i > 10:
             raise RuntimeError("runaway?")
-        if raw.status_code != 200:
-            if raw.status_code == 404 or (target.startswith("corp") and raw.status_code == 500):
-                break
-            raw.raise_for_status()
         r = raw.json()
         for x in r:
             yield x
