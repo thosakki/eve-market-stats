@@ -4,7 +4,7 @@ reset	:
 	rm -f $(assets) $(orders) latest-orderset
 
 sde/fsd/types.yaml	:
-	curl -O https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip
+	wget https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip
 	unzip sde.zip -d sde
 
 sde.db	:	sde/fsd/types.yaml
@@ -12,10 +12,6 @@ sde.db	:	sde/fsd/types.yaml
 
 top-traded.csv	:	popular*.csv top_market_items.py order-sizes.txt sde.db
 	./top_market_items.py --exclude_category 2 4 5 17 25 41 42 43 65 91 --popular popular*.csv > $@
-
-sde-TRANQUILITY.zip	:
-	curl -O https://eve-static-data-export.s3-eu-west-1.amazonaws.com/tranquility/sde.zip
-	unzip $@
 
 latest-orderset-by-station-type.csv.gz	:	latest.csv.gz
 	zcat $< | sort -t '	'  -k 9n -k 2n | gzip -9 - > $@
@@ -32,10 +28,10 @@ market-history	:	latest-orderset-by-station-type.csv.gz top-traded.csv top-trade
 	touch $@
 
 latest-orderset	:
-	curl -f https://market.fuzzwork.co.uk/api/orderset | jq '.orderset' > $@
+	wget -O - https://market.fuzzwork.co.uk/api/orderset | jq '.orderset' > $@
 
 latest.csv.gz	:	latest-orderset
-	curl -f -O https://market.fuzzwork.co.uk/orderbooks/orderset-$$(cat $<).csv.gz
+	wget -N https://market.fuzzwork.co.uk/orderbooks/orderset-$$(cat $<).csv.gz
 	ln -sf orderset-$$(cat $<).csv.gz $@
 
 assets-corporation.csv	:
