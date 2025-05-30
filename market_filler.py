@@ -123,16 +123,18 @@ def suggest_stock(station: int, item: ItemModel, station_stocks: Dict[int, int],
 
     # stock_quantity is how much more *we* want to supply to the market (not including any stock that
     # we already listed) - before considering availability.
-    if existing_stock > 0:
+    if current_order and existing_stock*2 + (current_order[0]*3 if current_order is not None else 0) > original_stock_quantity:
         # We reduce our potential stocking even more aggressively if we have an order up already
         # note that existing stock may include an existing order, so this is really:
         # competitor stock*2 + my_stock_below_target*2 + my_stock_total*2
-        if existing_stock*2 + (current_order[0]*2 if current_order is not None else 0) > original_stock_quantity:
-            stock_quantity = 0
+        stock_quantity = 0
+        if existing_stock > 0:
             notes.append("already in stock below target price, volume={}".format(existing_stock))
         else:
-            stock_quantity = max(0, original_stock_quantity - existing_stock)
-            notes.append("some stock below target price, volume={}".format(existing_stock))
+            notes.append("existing order needs no addition")
+    elif existing_stock > 0:
+        stock_quantity = max(0, original_stock_quantity - existing_stock)
+        notes.append("some stock below target price, volume={}".format(existing_stock))
     else:
         stock_quantity = original_stock_quantity
 
