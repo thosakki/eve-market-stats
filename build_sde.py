@@ -15,6 +15,7 @@ log = logging.getLogger(__name__)
 arg_parser = ArgumentParser(prog='build-sde.py')
 arg_parser.add_argument('--initial', action='store_true')
 arg_parser.add_argument('--skip_types', action='store_true')
+arg_parser.add_argument('--skip_systems', action='store_true')
 args = arg_parser.parse_args()
 
 def build_categories(cur):
@@ -40,6 +41,8 @@ def build_categories(cur):
         # assume the root element is a sequence
         assert loader.check_event(yaml.MappingStartEvent)
         loader.get_event()
+        added = 0
+        failed = 0
 
         # now while the next event does not end the sequence, process each item
         while not loader.check_event(yaml.MappingEndEvent):
@@ -56,14 +59,20 @@ def build_categories(cur):
             name = v['name']['en']
             try:
                 cur.execute("""INSERT OR REPLACE INTO Categories VALUES(?,?)""", [cat_id, name])
+                added += 1
             except sqlite3.IntegrityError:
                 log.error("failed to insert ({},{})".format(cat_id, name))
+                failed += 1
         # assume document ends and no further documents are in stream
         loader.get_event()
         assert loader.check_event(yaml.DocumentEndEvent)
         loader.get_event()
         assert loader.check_event(yaml.StreamEndEvent)
         cur.commit()
+        if added > 0 or failed == 0:
+            log.info("Added {} categories, failed {}".format(added, failed))
+        else:
+            log.error("Added {} categories, failed {}".format(added, failed))
 
 def build_market_groups(cur):
     if args.initial:
@@ -144,9 +153,9 @@ def build_market_groups(cur):
             assert loader.check_event(yaml.StreamEndEvent)
             cur.commit()
             if added > 0 or skipped == 0:
-                log.info("Added {} entries, skipped {}".format(added, skipped))
+                log.info("Added {} market groups, skipped {}".format(added, skipped))
             else:
-                log.error("Added {} entries, skipped {}".format(added, skipped))
+                log.error("Added {} market groups, skipped {}".format(added, skipped))
 
 # Commodity,Number of trades,Traded items,Value of trades,Lst,,as per ESI; complete New Eden; last update: 24.11.2023
 # PLEX,2.974,1.078.606,4.415.528.028.140,,,
@@ -176,6 +185,9 @@ def build_groups(cur):
         assert loader.check_event(yaml.MappingStartEvent)
         loader.get_event()
 
+        added = 0
+        failed = 0
+
         # now while the next event does not end the sequence, process each item
         while not loader.check_event(yaml.MappingEndEvent):
             # compose current item to a node as if it was the root node
@@ -191,14 +203,20 @@ def build_groups(cur):
             name = v['name']['en']
             try:
                 cur.execute("""INSERT OR REPLACE INTO Groups VALUES(?,?,?)""", [group_id, name, v['categoryID']])
+                added += 1
             except sqlite3.IntegrityError:
                 log.error("failed to insert ({},{},{})".format(group_id, name, v['categoryID']))
+                failed += 1
         # assume document ends and no further documents are in stream
         loader.get_event()
         assert loader.check_event(yaml.DocumentEndEvent)
         loader.get_event()
         assert loader.check_event(yaml.StreamEndEvent)
         cur.commit()
+        if added > 0 or failed == 0:
+            log.info("Added {} groups, failed {}".format(added, failed))
+        else:
+            log.error("Added {} groups, failed {}".format(added, failed))
 
 def build_types(cur):
     if args.initial:
@@ -226,7 +244,9 @@ def build_types(cur):
         assert loader.check_event(yaml.MappingStartEvent)
         loader.get_event()
 
-        count = 0
+        added = 0
+        failed = 0
+
         # now while the next event does not end the sequence, process each item
         while not loader.check_event(yaml.MappingEndEvent):
             # compose current item to a node as if it was the root node
@@ -279,7 +299,9 @@ def build_stations(cur):
         assert loader.check_event(yaml.SequenceStartEvent)
         loader.get_event()
 
-        count = 0
+        added = 0
+        failed = 0
+
         # now while the next event does not end the sequence, process each item
         while not loader.check_event(yaml.SequenceEndEvent):
             # compose current item to a node as if it was the root node
@@ -289,8 +311,10 @@ def build_stations(cur):
 
             try:
                 cur.execute("""INSERT OR REPLACE INTO Stations VALUES(?,?,?,?);""", [v['stationID'], v['stationName'], v['solarSystemID'], v['regionID']])
+                added += 1
             except sqlite3.IntegrityError:
                 log.error("failed to insert '{}'".format(v['stationID']))
+                failed += 1
 
         # assume document ends and no further documents are in stream
         loader.get_event()
@@ -298,6 +322,13 @@ def build_stations(cur):
         loader.get_event()
         assert loader.check_event(yaml.StreamEndEvent)
         cur.commit()
+        if added > 0 or failed == 0:
+            log.info("Added {} stations, failed {}".format(added, failed))
+        else:
+            log.error("Added {} stations, failed {}".format(added, failed))
+
+    added = 0
+    failed = 0
 
     with open("extra-stations.csv", "rt") as more_fh:
         r = csv.DictReader(more_fh)
@@ -305,9 +336,15 @@ def build_stations(cur):
             try:
                 cur.execute("""INSERT OR REPLACE INTO Stations VALUES(?,?,?,?)""",
                         [row['ID'], row['Name'], row['SystemID'], row['RegionID']])
+                added += 1
             except sqlite3.IntegrityError:
                 log.error("failed to insert extra '{}'".format(row['ID']))
+                failed += 1
         cur.commit()
+        if added > 0 or failed == 0:
+            log.info("Added {} player stations, failed {}".format(added, failed))
+        else:
+            log.error("Added {} player stations, failed {}".format(added, failed))
 
 def build_systems(cur):
     if args.initial:
@@ -369,6 +406,7 @@ build_market_groups(con)
 build_groups(con)
 build_categories(con)
 build_stations(con)
-build_systems(con)
+if not args.skip_systems:
+    build_systems(con)
 
 log.info('...done')
