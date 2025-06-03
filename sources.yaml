@@ -6,7 +6,7 @@
       isk_cost: 0.007
     - name: Dodixie IX - Moon 20 - Federation Navy Assembly Plant
     - name: Botane - IChooseYou Market and Industry
-    - name: Hek VIII - Moon 12 - Boundless Creation Factory
+    - name: Vylade - Ferengi Forward Operation Base
 - id: Dodixie
   to: Dodixie IX - Moon 20 - Federation Navy Assembly Plant
   from:
@@ -14,4 +14,3 @@
       vol_cost: 150
       isk_cost: 0.007
     - name: Botane - IChooseYou Market and Industry
-    - name: Hek VIII - Moon 12 - Boundless Creation Factory

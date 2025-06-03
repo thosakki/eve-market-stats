@@ -16,7 +16,6 @@ top-traded.csv	:	popular*.csv top_market_items.py order-sizes.txt sde.db
 latest-orderset-by-station-type.csv.gz	:	latest.csv.gz
 	zcat $< | sort -t '	'  -k 9n -k 2n | gzip -9 - > $@
 
-
 market-efficiency.csv	:	latest-orderset-by-station-type.csv.gz top-traded-measure.csv calc_market_quality.py
 	./calc_market_quality.py --orderset $< --top-traded-items top-traded-measure.csv --limit-top-traded-items 1000 | awk 'NR == 1; NR > 1 {print $0 | "sort -t , -k 3nr"}' > $@
 
@@ -51,7 +50,7 @@ market-filler-dodixie.csv	:	latest.csv.gz top-traded.csv industry.db market-hist
 	python3 market_filler.py --top-traded-items top-traded.csv --orderset latest.csv.gz --station Dodixie --sources sources.yaml --limit-top-traded-items 1000 --assets $(assets) --orders $(orders) --exclude_industry exclude-industry.txt --stock_fraction 0.04 > $@
 
 market-filler-tar.csv	:	latest.csv.gz top-traded.csv industry.db market-history $(assets) $(orders)
-	python3 market_filler.py --top-traded-items top-traded.csv --orderset latest.csv.gz --limit-top-traded-items 850 --station Tar --sources sources.yaml --assets $(assets) --orders $(orders) --exclude_industry exclude-industry.txt --exclude_market_paths exclude-market-tar.txt > $@
+	python3 market_filler.py --top-traded-items top-traded.csv --orderset latest.csv.gz --limit-top-traded-items 900 --station Tar --sources sources.yaml --assets $(assets) --orders $(orders) --exclude_industry exclude-industry.txt --exclude_market_paths exclude-market-tar.txt > $@
 
 industry-items.csv	:	industry.db
 	./list-industry-inputs-outputs.py > $@
