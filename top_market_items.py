@@ -33,6 +33,8 @@ cur = con.cursor()
 months = len(args.popular)
 for name in args.popular:
   log.info('Reading trade volumes {}...'.format(name))
+  new = 0
+  updated = 0
   with open(name) as market_data_csv:
     reader = csv.DictReader(market_data_csv)
     for r in reader:
@@ -55,8 +57,11 @@ for name in args.popular:
         traded_items = int(r['Traded items'].replace('.', ''))
         if ti.ID not in items:
             items[ti.ID] = { 'ID': ti.ID, 'Name': ti.Name, 'CategoryID': ti.CategoryID, 'GroupID': ti.GroupID, 'MarketGroup': ti.MarketGroup, 'NormalMarketSize': trade_lib.get_order_size(ti).NormalMarketSize, 'by_month': []}
+            new += 1
+        else:
+            updated += 1
         items[ti.ID]['by_month'].append({'num': traded_items, 'value': value_traded})
-  log.info('...read trade volumes {}'.format(name))
+  log.info('...read trade volumes {}: new {} updated {}'.format(name, new, updated))
 
 for _, r in items.items():
     r['num'] = min(x['num'] for x in r['by_month'])

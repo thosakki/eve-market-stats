@@ -11,7 +11,7 @@ sde.db	:	sde/fsd/types.yaml
 	rm -f sde.db && ./build_sde.py --initial
 
 top-traded.csv	:	popular*.csv top_market_items.py order-sizes.txt sde.db
-	./top_market_items.py --exclude_category 2 4 5 17 25 41 42 43 65 91 --popular popular*.csv > $@
+	./top_market_items.py --exclude_category 2 4 5 9 17 25 41 42 43 65 91 2118 --popular popular*.csv > $@
 
 latest-orderset-by-station-type.csv.gz	:	latest.csv.gz
 	zcat $< | sort -t '	'  -k 9n -k 2n | gzip -9 - > $@
