@@ -3,6 +3,7 @@
 from argparse import ArgumentParser
 from collections import defaultdict, namedtuple
 import csv
+import datetime
 import gzip
 import logging
 import math
@@ -12,6 +13,8 @@ import sys
 import yaml
 
 import lib
+from industry import get_reprocess_value
+from price_lib import get_pricing
 import trade_lib
 
 logging.basicConfig(format='%(name)s - %(levelname)s - %(message)s', level=logging.INFO)
@@ -21,6 +24,7 @@ arg_parser.add_argument('--include_group', nargs='*', type=int)
 arg_parser.add_argument('--exclude_group', nargs='*', type=int)
 arg_parser.add_argument('--include_category', nargs='*', type=int)
 arg_parser.add_argument('--exclude_category', nargs='*', type=int)
+arg_parser.add_argument('--exclude_junk', action='store_true')
 arg_parser.add_argument('--popular', nargs='*', type=str)
 args = arg_parser.parse_args()
 
@@ -28,13 +32,24 @@ items = {}
 TypeInfo = lib.TypeInfo
 
 con = sqlite3.connect("sde.db")
+prices_conn = sqlite3.connect("market-prices.db")
 cur = con.cursor()
+
+def is_junk(type_id):
+    date = datetime.date.today()
+    price = get_pricing(prices_conn, type_id, date).fair_price
+    reprocess_value = get_reprocess_value(con, prices_conn, type_id, date)
+    if reprocess_value and price and price < reprocess_value*1.1:
+        log.info('  {} excluded as junk (value {} vs reprocessed {})'.format(type_id, price, reprocess_value))
+        return True
+    return False
 
 months = len(args.popular)
 for name in args.popular:
   log.info('Reading trade volumes {}...'.format(name))
   new = 0
   updated = 0
+  junk_items = 0
   with open(name) as market_data_csv:
     reader = csv.DictReader(market_data_csv)
     for r in reader:
@@ -48,6 +63,9 @@ for name in args.popular:
         if args.exclude_group is not None and ti.GroupID in args.exclude_group: continue
         if args.include_category is not None and ti.CategoryID not in args.include_category: continue
         if args.exclude_category is not None and ti.CategoryID in args.exclude_category: continue
+        if args.exclude_junk and is_junk(ti.ID):
+            junk_items += 1
+            continue
 
         if ti.MarketGroup is None:
             log.debug("non-market item {}".format(t))
@@ -61,9 +79,9 @@ for name in args.popular:
         else:
             updated += 1
         items[ti.ID]['by_month'].append({'num': traded_items, 'value': value_traded})
-  log.info('...read trade volumes {}: new {} updated {}'.format(name, new, updated))
+  log.info('...read trade volumes {}: new {} updated {} junk {}'.format(name, new, updated, junk_items))
 
-for _, r in items.items():
+for type_id, r in items.items():
     r['num'] = min(x['num'] for x in r['by_month'])
     r['value'] = min(x['value'] for x in r['by_month'])
 

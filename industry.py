@@ -68,6 +68,7 @@ def _get_item_build_costs(items: Dict[int, dict], prices_conn: sqlite3.Connectio
         done = True
 
 def get_reprocess_value(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, type_id: int, date: datetime.date) -> Optional[float]:
+    item = lib.get_type_info(sde_conn.cursor(), type_id)
     outputs = sde_conn.execute("""
         SELECT OutputID,QuantityYielded FROM ReprocessItems WHERE ID=?;
         """, [type_id])
@@ -76,11 +77,9 @@ def get_reprocess_value(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Conne
         price = None
         p = get_pricing(prices_conn, o[0], date)
         if p.fair_price is None:
-          input_type = lib.get_type_info(sde_conn.cursor(), o[0])
-          log.warning("No fair price for {}: {} {}".format(input_type.Name, o[0], date))
           return None
         reprocess_value += p.fair_price * math.floor(o[1] * 0.5)
-    return reprocess_value if reprocess_value > 0.0 else None
+    return reprocess_value/item.PortionSize if reprocess_value > 0.0 else None
 
 def read_items(sde_conn: sqlite3.Connection, prices_conn: sqlite3.Connection, industry_conn: sqlite3.Connection, exclude_industry: str, date) -> Dict[int, float]:
     items = _get_buildable_items(sde_conn, industry_conn, exclude_industry)
