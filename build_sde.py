@@ -290,7 +290,7 @@ def build_reprocessing(cur):
           QuantityYielded INT
         );""")
         con.execute("""
-        CREATE UNIQUE INDEX ReprocessItems_Key ON ReprocessItems(OutputID, ID);
+        CREATE UNIQUE INDEX ReprocessItems_Key ON ReprocessItems(ID, OutputID);
         """)
 
     with open("sde/fsd/typeMaterials.yaml", "rt") as types_file:
