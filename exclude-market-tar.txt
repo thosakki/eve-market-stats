@@ -1,7 +1,13 @@
 Ammunition & Charges>*>*>Extra Large
 Ammunition & Charges>Missiles>XL Torpedoes>*
+Implants & Boosters>Cerebral Accelerators
 Manufacture & Research>*
 Drones>Fighters>*
 Skills>Spaceship Command
 Structure Equipment>*
 Special Edition Assets>*
+Ship Equipment>*>*>Capital
+# Items that are really industry items - stuff that sells at Buy for reprocessing.
+Ship Equipment>Hull & Armor>Hull Repairers>*
+Ship Equipment>Electronic Warfare>Stasis Grapplers
+Ship Equipment>Electronic Warfare>Warp Disruption Field Generators

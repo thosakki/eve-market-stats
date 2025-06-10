@@ -104,8 +104,12 @@ def suggest_stock(station: int, item: ItemModel, station_stocks: Dict[int, int],
 
     market_quantity = math.floor(item.trade.ValueTraded / item.buy)
     # original_stock_quantity how much supply of this item we want to be available on the market.
+    original_stock_quantity = market_quantity * stock_fraction
+    # Round to nearest multiple of min_order,
+    # unless we are below min_order in which case round to 1 if >=1/4 of min_order
+    #                                                or to 0 stock otherwise.
     original_stock_quantity = min_order * math.floor(
-            0.5 + math.floor(market_quantity * stock_fraction)/min_order)
+        0.5 + original_stock_quantity/min_order)
 
     # Reduce potential order by the amount of existing stock below the target sale price.
     existing_stock = station_stocks.get(station, [0,0])[1]
