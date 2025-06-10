@@ -262,11 +262,12 @@ def build_types(cur):
             name = v['name']['en']
             try:
                 cur.execute("""INSERT INTO Types VALUES(?,?,?,?);""", [type_id, name, v['groupID'], v.get('marketGroupID')])
+                added += 1
             except sqlite3.IntegrityError:
                 log.error("failed to insert ({},{},{})".format(type_id, name, v['groupID']))
+                failed += 1
 
-            count+=1
-            if count % 10000 == 0:
+            if added % 10000 == 0:
                 cur.commit()
 
         # assume document ends and no further documents are in stream
@@ -275,6 +276,72 @@ def build_types(cur):
         loader.get_event()
         assert loader.check_event(yaml.StreamEndEvent)
         cur.commit()
+        if added > 0 or failed == 0:
+            log.info("Added {} groups, failed {}".format(added, failed))
+        else:
+            log.error("Added {} groups, failed {}".format(added, failed))
+
+def build_reprocessing(cur):
+    if args.initial:
+        con.execute("""
+        CREATE TABLE ReprocessItems(
+          ID       INT NOT NULL,
+          OutputID INT NOT NULL,
+          QuantityYielded INT
+        );""")
+        con.execute("""
+        CREATE UNIQUE INDEX ReprocessItems_Key ON ReprocessItems(OutputID, ID);
+        """)
+
+    with open("sde/fsd/typeMaterials.yaml", "rt") as types_file:
+        loader = yaml.SafeLoader(types_file)
+
+        # check proper stream start (should never fail)
+        assert loader.check_event(yaml.StreamStartEvent)
+        loader.get_event()
+        assert loader.check_event(yaml.DocumentStartEvent)
+        loader.get_event()
+
+        # assume the root element is a sequence
+        assert loader.check_event(yaml.MappingStartEvent)
+        loader.get_event()
+
+        added = 0
+        failed = 0
+
+        # now while the next event does not end the sequence, process each item
+        while not loader.check_event(yaml.MappingEndEvent):
+            # compose current item to a node as if it was the root node
+            node = loader.compose_node(None, None)
+            # we set deep=True for complete processing of all the node's children
+            k = loader.construct_object(node, True)
+            # compose current item to a node as if it was the root node
+            node = loader.compose_node(None, None)
+            # we set deep=True for complete processing of all the node's children
+            v = loader.construct_object(node, True)
+
+            type_id = k
+            for material in v['materials']:
+                try:
+                    con.execute("""INSERT INTO ReprocessItems VALUES(?,?,?);""", [type_id, material['materialTypeID'], material['quantity']])
+                    added += 1
+                except sqlite3.IntegrityError:
+                    log.error("failed to insert ({},{},{})".format(type_id, material['materialTypeID'], material['quantity']))
+                    failed += 1
+
+            if added % 10000 == 0:
+                cur.commit()
+
+        # assume document ends and no further documents are in stream
+        loader.get_event()
+        assert loader.check_event(yaml.DocumentEndEvent)
+        loader.get_event()
+        assert loader.check_event(yaml.StreamEndEvent)
+        con.commit()
+        if added > 0 or failed == 0:
+            log.info("Added {} types for reprocessing, failed {}".format(added, failed))
+        else:
+            log.error("Added {} types for reprocessing, failed {}".format(added, failed))
 
 def build_stations(cur):
     if args.initial:
@@ -402,6 +469,7 @@ con = sqlite3.connect("sde.db")
 cur = con.cursor()
 if not args.skip_types:
     build_types(con)
+build_reprocessing(con)
 build_market_groups(con)
 build_groups(con)
 build_categories(con)
